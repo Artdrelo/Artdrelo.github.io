@@ -90,7 +90,7 @@ window.PROJECTS = [
     description:
       "Maintenance and new features for Coin Dozer (100M+ downloads): the Coin Dozer: Haunted Halloween event, migrating from the old purchasing system to Unity IAP with new subscription options, and new shader effects. Helped keep a 4.2-star rating and crash rates below 0.5%.",
     videos: [
-      { type: "youtube", id: "7tMlJPTA9_s" },
+      { type: "youtube", id: "7tMlJPTA9_s", poster: "assets/img/posters/yt-7tMlJPTA9_s.jpg" },
       { type: "youtube", id: "4cBi3f6R3W4" }
     ],
     gallery: [
@@ -156,7 +156,7 @@ window.PROJECTS = [
     description:
       "A simulator that recreates common driving situations such as rain or driving drunk, and evaluates mistakes like speeding and running traffic lights. Playable in VR with hand tracking or on PC.",
     videos: [
-      { type: "youtube", id: "Ctt-9T1OSvI", start: 118 },
+      { type: "youtube", id: "Ctt-9T1OSvI", start: 118, poster: "assets/img/posters/yt-Ctt-9T1OSvI.jpg" },
       { type: "youtube", id: "njfQVCf_amc" },
       { type: "youtube", id: "DhKsTKb_4oE" }
     ]

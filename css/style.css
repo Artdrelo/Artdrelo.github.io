@@ -45,7 +45,7 @@ em { font-style: normal; color: var(--accent); }
 /* ---------- FX layers ---------- */
 #particles {
   position: fixed; inset: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 50; mix-blend-mode: screen;
+  pointer-events: none; z-index: 50;   /* no blend mode: a full-screen blended layer is costly to composite */
 }
 .scanlines {
   position: fixed; inset: 0; pointer-events: none; z-index: 51; opacity: .35;
@@ -78,8 +78,9 @@ body.fx-off #particles, body.fx-off .scanlines { display: none; }
   position: fixed; top: 0; left: 0; right: 0; z-index: 40;
   display: flex; align-items: center; gap: 1.5rem;
   padding: 14px max(16px, (100vw - 1180px) / 2);
-  background: linear-gradient(to bottom, rgba(11,12,16,.9), rgba(11,12,16,0));
-  backdrop-filter: blur(6px);
+  /* solid-ish gradient instead of backdrop blur, which re-blurs the animated
+     hero underneath on every frame */
+  background: linear-gradient(to bottom, rgba(11,12,16,.94) 0%, rgba(11,12,16,.7) 60%, rgba(11,12,16,0));
 }
 .nav-logo { font: 700 18px var(--mono); text-decoration: none; }
 .nav-logo span { color: var(--accent); animation: blink 1.1s steps(1) infinite; }
@@ -90,6 +91,7 @@ body.fx-off #particles, body.fx-off .scanlines { display: none; }
   font: 11px var(--mono); color: var(--muted); background: none; cursor: pointer;
   border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
 }
+.fx-toggle + .fx-toggle { margin-left: -.9rem; }   /* keep the toggle buttons grouped */
 .fx-toggle[aria-pressed="true"] { color: var(--accent-2); border-color: var(--accent-2); }
 .palette-toggle { display: inline-flex; align-items: center; padding: 6px 11px; }
 .palette-toggle i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1.5px var(--bg); transition: transform .2s; }
@@ -162,12 +164,12 @@ h2 { font-size: clamp(2rem, 4.5vw, 3.2rem); letter-spacing: -.02em; margin-botto
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   overflow: hidden; cursor: pointer; color: inherit; font: inherit; padding: 0;
   transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .3s, box-shadow .3s;
-  transform-style: preserve-3d; will-change: transform;
+  transform-style: preserve-3d;
 }
 .card:hover, .card:focus-visible { border-color: var(--accent); box-shadow: 0 20px 50px -20px var(--accent-glow); outline: none; }
 .card-media { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #0f1116; }
-.card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease, filter .4s; filter: saturate(.9); }
-.card:hover .card-media img { transform: scale(1.06); filter: saturate(1.15); }
+.card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
+.card:hover .card-media img { transform: scale(1.06); }
 .card-media::after {
   content: ""; position: absolute; inset: 0;
   background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(var(--c1-rgb),.18), rgba(var(--deep-rgb),.12) 45%, transparent 70%);
@@ -293,7 +295,7 @@ h2 { font-size: clamp(2rem, 4.5vw, 3.2rem); letter-spacing: -.02em; margin-botto
 @media (max-width: 680px) {
   body { font-size: 16px; }
   .nav nav { display: none; }
-  .fx-toggle { margin-left: auto; }
+  .palette-toggle { margin-left: auto; }
   .grid-featured, .grid-more, .skills, .gallery { grid-template-columns: 1fr; }
   .focus { grid-template-columns: 1fr; gap: .25rem; }
   .highlight { grid-template-columns: 1fr; }

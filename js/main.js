@@ -20,6 +20,7 @@
     if (seen || reducedMotion) { el.remove(); return; }
 
     document.body.classList.add("boot-active");
+    SFX.warmup();
     const steps = [
       "initializing unity runtime",
       "loading gameplay systems",
@@ -35,6 +36,7 @@
       if (finished) return;
       finished = true;
       fill.style.width = "100%"; pct.textContent = "100%";
+      SFX.bootDone();
       try { sessionStorage.setItem("booted", "1"); } catch {}
       el.classList.add("done");
       document.body.classList.remove("boot-active");
@@ -51,6 +53,7 @@
       const li = document.createElement("li");
       li.innerHTML = `<span>${steps[i]}</span><span class="dots">${".".repeat(80)}</span><span class="ok">OK</span>`;
       list.appendChild(li);
+      SFX.bootTick(i);
       i++;
       const p = Math.round((i / steps.length) * 100);
       fill.style.width = p + "%"; pct.textContent = p + "%";
@@ -70,8 +73,21 @@
     fxBtn.setAttribute("aria-pressed", String(fxOn));
     fxBtn.textContent = fxOn ? "FX on" : "FX off";
   };
-  fxBtn.addEventListener("click", () => { fxOn = !fxOn; store.set("fx", fxOn ? "on" : "off"); applyFx(); });
+  fxBtn.addEventListener("click", () => { fxOn = !fxOn; store.set("fx", fxOn ? "on" : "off"); applyFx(); requestHeroFrame(); });
   applyFx();
+
+  // sound toggle (sounds themselves live in js/sfx.js)
+  const sfxBtn = $("#sfx-toggle");
+  const applySfx = () => {
+    sfxBtn.setAttribute("aria-pressed", String(SFX.enabled));
+    sfxBtn.textContent = SFX.enabled ? "SFX on" : "SFX off";
+  };
+  sfxBtn.addEventListener("click", () => { SFX.setEnabled(!SFX.enabled); applySfx(); SFX.toggle(SFX.enabled); });
+  applySfx();
+
+  // the hero shader only animates while FX are on; when they're off it still
+  // redraws a single frame whenever something visible changes (palette, resize)
+  let requestHeroFrame = () => {};
 
   // -------------------------------------------------------------------------
   // Colour palettes: defined and applied in js/palette.js (loaded in <head>).
@@ -79,7 +95,8 @@
   // dark -> bright, used by the hero water.
   // -------------------------------------------------------------------------
   const theme = window.THEME;
-  $("#palette-toggle").addEventListener("click", () => setPalette(theme.index + 1));
+  $("#palette-toggle").addEventListener("click", () => { setPalette(theme.index + 1); SFX.palette(); });
+  document.addEventListener("palettechange", () => requestHeroFrame());
 
   // -------------------------------------------------------------------------
   // Cursor particles — sparks trail the mouse, ambient embers drift and get
@@ -88,19 +105,41 @@
   function particles() {
     const cv = $("#particles");
     const ctx = cv.getContext("2d");
-    // colours are looked up from `theme` at draw time so palette switches apply instantly;
     // the cursor effect only uses the main colour (c1) and a lighter tint of it
     const SPARK_KEYS = ["c1", "c1", "c1light"];
-    let W = 0, H = 0, dpr = 1;
+    let W = 0, H = 0;
     const sparks = [];
     const embers = [];
     const mouse = { x: -999, y: -999, px: -999, py: -999, active: false };
 
+    // Pre-rendered glow sprites, one per colour. Drawing a cached image is far
+    // cheaper than building a radial gradient for every spark on every frame.
+    const SPRITE = 64;
+    let sprites = {};
+    function buildSprites() {
+      sprites = {};
+      for (const key of ["c1", "c1light"]) {
+        const c = document.createElement("canvas");
+        c.width = c.height = SPRITE;
+        const g = c.getContext("2d");
+        const grd = g.createRadialGradient(SPRITE / 2, SPRITE / 2, 0, SPRITE / 2, SPRITE / 2, SPRITE / 2);
+        grd.addColorStop(0, "rgba(255,255,255,1)");          // hot white core
+        grd.addColorStop(.12, `rgba(${theme[key]},1)`);
+        grd.addColorStop(.4, `rgba(${theme[key]},.35)`);
+        grd.addColorStop(1, `rgba(${theme[key]},0)`);
+        g.fillStyle = grd;
+        g.fillRect(0, 0, SPRITE, SPRITE);
+        sprites[key] = c;
+      }
+    }
+    buildSprites();
+    document.addEventListener("palettechange", buildSprites);
+
     function resize() {
-      dpr = Math.min(devicePixelRatio || 1, 2);
+      // 1x resolution on purpose: everything here is a soft glow, and on
+      // high-DPI screens this cuts the pixels to clear and composite by 4x
       W = innerWidth; H = innerHeight;
-      cv.width = W * dpr; cv.height = H * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cv.width = W; cv.height = H;
       const target = Math.round((W * H) / 24000);
       while (embers.length < target) embers.push(makeEmber(true));
       embers.length = target;
@@ -142,7 +181,7 @@
             dx * .04 + (Math.random() - .5) * 1.2,
             dy * .04 + (Math.random() - .5) * 1.2 - .3,
             30 + Math.random() * 30,
-            .8 + Math.random() * 1.4
+            .9 + Math.random() * 1.5
           );
         }
       }
@@ -150,18 +189,23 @@
     }, { passive: true });
     document.addEventListener("pointerleave", () => { mouse.active = false; mouse.px = mouse.py = -999; });
 
-    addEventListener("pointerdown", e => {
-      if (!fxOn || e.target.closest("a, button, iframe, .modal-panel")) return;
-      for (let i = 0; i < 24; i++) {
-        const a = (i / 24) * Math.PI * 2 + Math.random() * .2;
-        const s = 1.5 + Math.random() * 2.5;
-        spawnSpark(e.clientX, e.clientY, Math.cos(a) * s, Math.sin(a) * s, 40 + Math.random() * 30, .8 + Math.random() * 1.6);
+    // exposed so the click handler can trigger a burst
+    burst = (x, y) => {
+      for (let i = 0; i < 30; i++) {
+        const a = (i / 30) * Math.PI * 2 + Math.random() * .2;
+        const s = 1.5 + Math.random() * 3;
+        spawnSpark(x, y, Math.cos(a) * s, Math.sin(a) * s, 45 + Math.random() * 35, 1 + Math.random() * 1.8);
       }
-    });
+    };
 
+    let cleared = false;
     function frame() {
       requestAnimationFrame(frame);
-      if (!fxOn || document.hidden) return;
+      if (!fxOn || document.hidden) {
+        if (!cleared) { ctx.clearRect(0, 0, W, H); sparks.length = 0; cleared = true; }
+        return;
+      }
+      cleared = false;
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = "lighter";
 
@@ -175,7 +219,7 @@
             const d = Math.sqrt(d2) || 1, f = (1 - d / 140) * .6;
             p.vx += (dx / d) * f; p.vy += (dy / d) * f;
             // faint link to the cursor
-            ctx.strokeStyle = `rgba(${theme[p.c]},${(1 - d / 140) * .1})`;
+            ctx.strokeStyle = `rgba(${theme[p.c]},${(1 - d / 140) * .14})`;
             ctx.lineWidth = .6;
             ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
           }
@@ -196,21 +240,17 @@
         s.vx *= .95; s.vy = s.vy * .95 + .03;
         s.x += s.vx; s.y += s.vy;
         const k = s.life / s.max;
-        const r = s.size * (0.4 + k);
-        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 3);
-        g.addColorStop(0, `rgba(${theme[s.c]},${k * .35})`);
-        g.addColorStop(1, `rgba(${theme[s.c]},0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(s.x, s.y, r * 3, 0, Math.PI * 2); ctx.fill();
+        const r = s.size * (0.4 + k) * 4;
+        ctx.globalAlpha = Math.min(1, k * .85);
+        ctx.drawImage(sprites[s.c], s.x - r, s.y - r, r * 2, r * 2);
       }
+      ctx.globalAlpha = 1;
 
       // soft glow under the cursor
       if (mouse.active) {
-        const g = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 90);
-        g.addColorStop(0, `rgba(${theme.c1},.04)`);
-        g.addColorStop(1, `rgba(${theme.c1},0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 90, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = .08;
+        ctx.drawImage(sprites.c1, mouse.x - 90, mouse.y - 90, 180, 180);
+        ctx.globalAlpha = 1;
       }
       ctx.globalCompositeOperation = "source-over";
     }
@@ -219,6 +259,7 @@
     resize();
     frame();
   }
+  let burst = () => {};
   particles();
 
   // -------------------------------------------------------------------------
@@ -239,6 +280,7 @@
       precision mediump float;
       #endif
       uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse;
+      uniform vec3 uDrop;   // last click on the water: xy = position (px), z = seconds since
       uniform vec3 uC2, uC3, uC4, uC5;   // non-main palette colours, dark -> bright (c1 is kept for the cursor FX)
 
       // Iterative domain-warp caustic: each pass feeds the warped coordinate
@@ -275,6 +317,13 @@
         float dl = length(d) + 1e-4;
         vec2 p = uv + d / dl * sin(dl*38. - t*4.) * exp(-dl*6.) * .03;
 
+        // click drop: a ring that expands from the click point and fades out
+        vec2 dd = uv - uDrop.xy / uRes.y;
+        float ddl = length(dd) + 1e-4;
+        float front = ddl - uDrop.z * .55;                       // ring radius grows with age
+        float ring = sin(front * 70.) * exp(-front * front * 900.) * exp(-uDrop.z * 2.2);
+        p += dd / ddl * ring * .018;
+
         // slow large-scale swell bends the whole pattern so it never looks tiled
         p += .05 * vec2(sin(p.y*2.3 + t*.21), cos(p.x*1.9 - t*.17));
 
@@ -307,6 +356,7 @@
 
         // faint glint where the cursor touches the water
         col += uC4 * exp(-dl*dl*60.) * .05;
+        col += mix(uC5, vec3(1.), .3) * max(ring, 0.) * .22 * depthK;   // light catching the drop ring
 
         float vig = smoothstep(1.4, .2, length(st - .5) * 1.6);
         gl_FragColor = vec4(col * vig, 1.);
@@ -333,6 +383,7 @@
     const uTime = gl.getUniformLocation(prog, "uTime");
     const uMouse = gl.getUniformLocation(prog, "uMouse");
     const uCols = [2, 3, 4, 5].map(k => gl.getUniformLocation(prog, "uC" + k));
+    const uDrop = gl.getUniformLocation(prog, "uDrop");
 
     // Resolution budget: render a capped number of pixels and let CSS upscale.
     // Weaker devices start with a smaller budget, and if frames still run slow
@@ -343,6 +394,18 @@
     const target = { x: 0, y: 0 }, cur = { x: 0, y: 0 };
     let visible = true;
 
+    // The hero's page position is cached so pointer handlers don't force a
+    // layout read (getBoundingClientRect) on every mouse move.
+    let heroTop = 0, heroLeft = 0, heroH = 1;
+    function measure() {
+      const r = cv.getBoundingClientRect();
+      heroTop = r.top + scrollY; heroLeft = r.left + scrollX; heroH = r.height;
+    }
+    const toCanvas = (cx, cy) => [
+      (cx + scrollX - heroLeft) * scale,
+      (heroH - (cy + scrollY - heroTop)) * scale
+    ];
+
     function resize() {
       const w = cv.clientWidth, h = cv.clientHeight;
       scale = Math.min(.6, Math.sqrt(budget / Math.max(1, w * h)));
@@ -350,28 +413,45 @@
       cv.height = Math.max(1, Math.round(h * scale));
       gl.viewport(0, 0, cv.width, cv.height);
       target.x = cur.x = cv.width * .7; target.y = cur.y = cv.height * .6;
+      measure();
+      dirty = true;
     }
+    let dirty = true;
     addEventListener("resize", resize);
-    resize();
 
     addEventListener("pointermove", e => {
-      const r = cv.getBoundingClientRect();
-      target.x = (e.clientX - r.left) * scale;
-      target.y = (r.height - (e.clientY - r.top)) * scale;
+      [target.x, target.y] = toCanvas(e.clientX, e.clientY);
     }, { passive: true });
 
+    // click on the water: ripple ring + drop sound
+    const drop = { x: -9999, y: -9999, at: -1e9 };
+    dropAt = (cx, cy) => {
+      [drop.x, drop.y] = toCanvas(cx, cy);
+      drop.at = performance.now();
+    };
+    isOverWater = (cx, cy) => {
+      const y = cy + scrollY - heroTop;
+      return y >= 0 && y <= heroH;
+    };
+
+    requestHeroFrame = () => { dirty = true; };
+    addEventListener("load", measure);   // fonts/images can shift the layout after start
     new IntersectionObserver(([en]) => { visible = en.isIntersecting; }).observe(cv);
 
     const start = performance.now();
-    let last = start, slowFrames = 0, sampled = 0;
+    let last = start, slowFrames = 0, sampled = 0, shownTime = 0;
+    resize();
     (function loop(now) {
       requestAnimationFrame(loop);
       const dt = now - last; last = now;
-      if (!visible || document.hidden) return;
-      if (!fxOn && now - start > 100) return; // keep the first frame as a static backdrop
+      if (!visible || document.hidden || modalOpen) return;   // nothing to see: skip the GPU work
+      // FX off: hold a still frame, but redraw it when something changes
+      // (palette switch, resize) so the colours always match the page
+      if (!fxOn && !dirty) return;
+      dirty = false;
 
       // adaptive quality: sample 90 frames, downgrade if most are slower than ~40 fps
-      if (downgrades < 2 && dt < 200) {
+      if (fxOn && downgrades < 2 && dt < 200) {
         sampled++;
         if (dt > 25) slowFrames++;
         if (sampled >= 90) {
@@ -380,14 +460,38 @@
         }
       }
 
+      if (fxOn && !reducedMotion) shownTime = ((now - start) / 1000) % 3600;
       cur.x += (target.x - cur.x) * .06; cur.y += (target.y - cur.y) * .06;
       gl.uniform2f(uRes, cv.width, cv.height);
-      gl.uniform1f(uTime, reducedMotion ? 0 : ((now - start) / 1000) % 3600);
+      gl.uniform1f(uTime, shownTime);
       gl.uniform2f(uMouse, cur.x, cur.y);
+      gl.uniform3f(uDrop, drop.x, drop.y, Math.min((now - drop.at) / 1000, 60));
       uCols.forEach((u, k) => { const c = theme.water[k]; gl.uniform3f(u, c[0] / 255, c[1] / 255, c[2] / 255); });
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     })(start);
   }
+  let dropAt = () => {}, isOverWater = () => false, modalOpen = false;
+
+  // -------------------------------------------------------------------------
+  // Clicks and hovers: sounds + click effects
+  // -------------------------------------------------------------------------
+  const INTERACTIVE = "a, button, .card, .live-icon, summary, [role=button]";
+  addEventListener("pointerdown", e => {
+    const t = e.target;
+    if (t.closest(INTERACTIVE)) { SFX.click(); return; }
+    if (!fxOn || t.closest("iframe, .modal-panel, .modal-backdrop, input, textarea")) return;
+    burst(e.clientX, e.clientY);
+    if (isOverWater(e.clientX, e.clientY)) { dropAt(e.clientX, e.clientY); SFX.water(); }
+    else SFX.sparkle();
+  }, { passive: true });
+
+  let hoverEl = null;
+  document.addEventListener("pointerover", e => {
+    if (e.pointerType !== "mouse") return;
+    const el = e.target.closest(INTERACTIVE);
+    if (el && el !== hoverEl) SFX.hover();
+    hoverEl = el;
+  }, { passive: true });
   heroShader();
 
   // -------------------------------------------------------------------------
@@ -399,7 +503,7 @@
     return `
       <button class="card reveal" type="button" data-slug="${p.slug}" aria-label="Open ${esc(p.title)}">
         <div class="card-media">
-          <img src="${p.cover}" alt="" loading="lazy">
+          <img src="${p.cover}" alt="" loading="lazy" decoding="async">
           <span class="play" aria-hidden="true">▶</span>
         </div>
         <div class="card-body">
@@ -433,14 +537,24 @@
   document.querySelectorAll(".card").forEach(card => {
     card.addEventListener("click", () => { location.hash = "p/" + card.dataset.slug; });
     if (reducedMotion) return;
+    // tilt is applied at most once per frame, and the card's rect is read once
+    // per hover instead of on every mouse move
+    let rect = null, pending = null, raf = 0;
+    card.addEventListener("pointerenter", () => { rect = card.getBoundingClientRect(); });
     card.addEventListener("pointermove", e => {
-      const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      card.style.transform = `perspective(900px) rotateY(${(x - .5) * 8}deg) rotateX(${(.5 - y) * 8}deg) translateY(-4px)`;
-      card.style.setProperty("--mx", x * 100 + "%");
-      card.style.setProperty("--my", y * 100 + "%");
-    });
-    card.addEventListener("pointerleave", () => { card.style.transform = ""; });
+      pending = e;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (!pending) return;
+        rect = rect || card.getBoundingClientRect();
+        const x = (pending.clientX - rect.left) / rect.width, y = (pending.clientY - rect.top) / rect.height;
+        card.style.transform = `perspective(900px) rotateY(${(x - .5) * 8}deg) rotateX(${(.5 - y) * 8}deg) translateY(-4px)`;
+        card.style.setProperty("--mx", x * 100 + "%");
+        card.style.setProperty("--my", y * 100 + "%");
+      });
+    }, { passive: true });
+    card.addEventListener("pointerleave", () => { pending = null; rect = null; card.style.transform = ""; });
   });
 
   // -------------------------------------------------------------------------
@@ -454,17 +568,28 @@
     switch (v.type) {
       case "youtube":
         src = `https://www.youtube-nocookie.com/embed/${v.id}?rel=0&autoplay=1${v.start ? "&start=" + v.start : ""}`;
-        thumb = v.poster || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
+        // 1280x720 thumbnail; falls back to the 480px one if a video has none
+        thumb = v.poster || `https://i.ytimg.com/vi/${v.id}/maxresdefault.jpg`;
         break;
       case "vimeo": src = `https://player.vimeo.com/video/${v.id}?autoplay=1`; break;
-      case "adobe": src = `https://www-ccv.adobe.io/v1/player/ccv/${v.id}/embed?api_key=behance1&bgcolor=%23191919&autoplay=true`; break;
+      case "adobe":
+        src = `https://www-ccv.adobe.io/v1/player/ccv/${v.id}/embed?api_key=behance1&bgcolor=%23191919&autoplay=true`;
+        // the video's own frame, saved locally at 1280px (Adobe's links expire)
+        thumb = v.poster || `assets/img/posters/${v.id}.jpg`;
+        break;
       case "file":
         return `<div class="video"><video src="${v.src}" controls playsinline preload="metadata" loop muted${thumb ? ` poster="${thumb}"` : ""}></video></div>`;
       default: return "";
     }
     return `<button class="video video-facade" type="button" data-src="${src}" aria-label="Play video">
-      ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : ""}<span class="play" aria-hidden="true">▶</span></button>`;
+      ${thumb ? `<img src="${thumb}" alt="" loading="lazy" decoding="async"${v.type === "youtube" && !v.poster ? ` data-yt="${v.id}"` : ""}>` : ""}<span class="play" aria-hidden="true">▶</span></button>`;
   }
+
+  // YouTube answers a missing maxres thumbnail with a 120x90 placeholder
+  // (sometimes as an error): swap in the always-present 480px version
+  const ytFallback = img => { if (img.dataset.yt) { img.src = `https://i.ytimg.com/vi/${img.dataset.yt}/hqdefault.jpg`; delete img.dataset.yt; } };
+  document.addEventListener("load", e => { const img = e.target; if (img.dataset?.yt && img.naturalWidth <= 120) ytFallback(img); }, true);
+  document.addEventListener("error", e => { if (e.target.dataset?.yt) ytFallback(e.target); }, true);
 
   document.addEventListener("click", e => {
     const f = e.target.closest(".video-facade");
@@ -493,9 +618,11 @@
           <div><h3>${esc(h.title)}</h3><p>${esc(h.text)}</p></div>
           ${embed(h.video, p.cover)}
         </div>`).join("")}
-      ${p.gallery ? `<div class="gallery">${p.gallery.map(src => `<img src="${src}" alt="" loading="lazy">`).join("")}</div>` : ""}
+      ${p.gallery ? `<div class="gallery">${p.gallery.map(src => `<img src="${src}" alt="" loading="lazy" decoding="async">`).join("")}</div>` : ""}
     `;
+    if (modal.hidden) SFX.open();
     modal.hidden = false;
+    modalOpen = true;
     document.body.style.overflow = "hidden";
     $(".modal-panel").scrollTop = 0;
     $(".modal-close").focus();
@@ -503,7 +630,9 @@
 
   function closeModal() {
     if (modal.hidden) return;
+    SFX.close();
     modal.hidden = true;
+    modalOpen = false;
     body.innerHTML = ""; // stops any playing video
     document.body.style.overflow = "";
     if (location.hash.startsWith("#p/")) history.replaceState(null, "", location.pathname + location.search);
