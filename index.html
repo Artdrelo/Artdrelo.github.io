@@ -11,7 +11,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230b0c10'/><text x='16' y='22' font-family='monospace' font-size='16' font-weight='700' fill='%23AFFC41' text-anchor='middle'>JG</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Jersey+15&family=Silkscreen:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/palette.js"></script>
 </head>
@@ -42,8 +42,16 @@
       <a href="#contact">Contact</a>
     </nav>
     <button id="palette-toggle" class="fx-toggle palette-toggle" type="button" title="Switch colour palette" aria-label="Switch colour palette"><i></i><i></i><i></i><i></i><i></i></button>
-    <button id="fx-toggle" class="fx-toggle" type="button" aria-pressed="true" title="Toggle visual effects">FX on</button>
-    <button id="sfx-toggle" class="fx-toggle" type="button" aria-pressed="true" title="Toggle sound effects">SFX on</button>
+    <button id="fx-toggle" class="fx-toggle" type="button" aria-pressed="true" title="Toggle visual effects">FX</button>
+    <button id="sfx-toggle" class="fx-toggle" type="button" aria-pressed="true" title="Toggle sound effects">SFX</button>
+    <div class="fx-toggle bgm" id="bgm" role="group" aria-label="Background music">
+      <button class="bgm-icon" id="bgm-mute" type="button" aria-pressed="true" title="Mute / unmute music" aria-label="Mute music">
+        <svg viewBox="0 0 10 10" width="13" height="13" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M3 1h6v2H3zM3 3h1v4H3zM8 3h1v3H8zM1 6h3v1H1zM0 7h4v1H0zM1 8h2v1H1zM6 5h3v1H6zM5 6h4v1H5zM6 7h2v1H6z"/></svg>
+      </button>
+      <div class="bgm-bars" id="bgm-bars" role="slider" tabindex="0" aria-label="Music volume" aria-valuemin="0" aria-valuemax="5" aria-valuenow="3" title="Music volume">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </div>
   </header>
 
   <main id="top">
@@ -52,6 +60,15 @@
     <section class="hero">
       <canvas id="hero-shader" aria-hidden="true"></canvas>
       <div class="hero-content container">
+        <!-- Photo: shows pixelated and resolves to full resolution on hover
+             (on touch screens it resolves once, automatically) -->
+        <figure class="avatar" id="avatar">
+          <div class="avatar-frame">
+            <img src="assets/img/me.jpg" alt="Photo of Jorge Andrés Gómez" width="720" height="720" decoding="async">
+            <canvas aria-hidden="true"></canvas>
+          </div>
+          <figcaption>Player 1</figcaption>
+        </figure>
         <p class="eyebrow">SENIOR GAME DEVELOPER · TECHNICAL ARTIST</p>
         <h1 class="glitch" data-text="Jorge Andrés Gómez">Jorge Andrés Gómez</h1>
         <p class="lede">

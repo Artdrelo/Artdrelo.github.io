@@ -70,20 +70,42 @@
   let fxOn = store.get("fx") !== "off" && !reducedMotion;
   const applyFx = () => {
     document.body.classList.toggle("fx-off", !fxOn);
-    fxBtn.setAttribute("aria-pressed", String(fxOn));
-    fxBtn.textContent = fxOn ? "FX on" : "FX off";
+    fxBtn.setAttribute("aria-pressed", String(fxOn));   // on/off look comes from CSS
   };
-  fxBtn.addEventListener("click", () => { fxOn = !fxOn; store.set("fx", fxOn ? "on" : "off"); applyFx(); requestHeroFrame(); });
+  fxBtn.addEventListener("click", () => { fxOn = !fxOn; store.set("fx", fxOn ? "on" : "off"); applyFx(); requestHeroFrame(); SFX.toggle(fxOn); });
   applyFx();
 
-  // sound toggle (sounds themselves live in js/sfx.js)
-  const sfxBtn = $("#sfx-toggle");
-  const applySfx = () => {
+  // sound effects and background music toggles (audio lives in js/sfx.js)
+  const sfxBtn = $("#sfx-toggle"), muteBtn = $("#bgm-mute"), bars = $("#bgm-bars");
+  const applyAudio = () => {
+    const lvl = SFX.music.level;
     sfxBtn.setAttribute("aria-pressed", String(SFX.enabled));
-    sfxBtn.textContent = SFX.enabled ? "SFX on" : "SFX off";
+    muteBtn.setAttribute("aria-pressed", String(lvl > 0));
+    muteBtn.setAttribute("aria-label", lvl > 0 ? "Mute music" : "Unmute music");
+    bars.setAttribute("aria-valuenow", String(lvl));
+    bars.setAttribute("aria-valuetext", lvl ? `${lvl} of ${SFX.music.LEVELS}` : "off");
+    bars.querySelectorAll("i").forEach((b, i) => b.classList.toggle("on", i < lvl));
   };
-  sfxBtn.addEventListener("click", () => { SFX.setEnabled(!SFX.enabled); applySfx(); SFX.toggle(SFX.enabled); });
-  applySfx();
+  sfxBtn.addEventListener("click", () => { SFX.setEnabled(!SFX.enabled); applyAudio(); SFX.toggle(SFX.enabled); });
+  muteBtn.addEventListener("click", () => { SFX.music.toggleMute(); applyAudio(); });
+
+  // music volume bars: click or drag across them, or use the arrow keys
+  const setVol = n => { if (n !== SFX.music.level) { SFX.music.setLevel(n); applyAudio(); } };
+  const levelAt = x => {
+    const r = bars.getBoundingClientRect();
+    return Math.max(0, Math.min(SFX.music.LEVELS, Math.ceil(((x - r.left) / r.width) * SFX.music.LEVELS)));
+  };
+  bars.addEventListener("pointerdown", e => {
+    bars.setPointerCapture(e.pointerId);
+    const n = levelAt(e.clientX);
+    setVol(n === 1 && SFX.music.level === 1 ? 0 : n);       // clicking the only lit bar turns it off
+  });
+  bars.addEventListener("pointermove", e => { if (bars.hasPointerCapture(e.pointerId)) setVol(levelAt(e.clientX)); });
+  bars.addEventListener("keydown", e => {
+    const l = SFX.music.level, keys = { ArrowRight: l + 1, ArrowUp: l + 1, ArrowLeft: l - 1, ArrowDown: l - 1, Home: 0, End: SFX.music.LEVELS };
+    if (e.key in keys) { e.preventDefault(); setVol(Math.max(0, Math.min(SFX.music.LEVELS, keys[e.key]))); }
+  });
+  applyAudio();
 
   // the hero shader only animates while FX are on; when they're off it still
   // redraws a single frame whenever something visible changes (palette, resize)
@@ -105,42 +127,46 @@
   function particles() {
     const cv = $("#particles");
     const ctx = cv.getContext("2d");
+    // Pixel-art rendering: the canvas is drawn at 1/PX resolution and scaled
+    // up with nearest-neighbour filtering (CSS image-rendering: pixelated), so
+    // every particle snaps to a chunky pixel grid. Also 1/9 of the pixels to draw.
+    const PX = 3;
     // the cursor effect only uses the main colour (c1) and a lighter tint of it
     const SPARK_KEYS = ["c1", "c1", "c1light"];
-    let W = 0, H = 0;
+    let W = 0, H = 0;      // canvas size in game pixels
     const sparks = [];
     const embers = [];
     const mouse = { x: -999, y: -999, px: -999, py: -999, active: false };
+    // alpha in a few hard steps, like a limited palette
+    const stepA = a => Math.ceil(a * 4) / 4;
 
-    // Pre-rendered glow sprites, one per colour. Drawing a cached image is far
-    // cheaper than building a radial gradient for every spark on every frame.
-    const SPRITE = 64;
-    let sprites = {};
-    function buildSprites() {
-      sprites = {};
-      for (const key of ["c1", "c1light"]) {
-        const c = document.createElement("canvas");
-        c.width = c.height = SPRITE;
-        const g = c.getContext("2d");
-        const grd = g.createRadialGradient(SPRITE / 2, SPRITE / 2, 0, SPRITE / 2, SPRITE / 2, SPRITE / 2);
-        grd.addColorStop(0, "rgba(255,255,255,1)");          // hot white core
-        grd.addColorStop(.12, `rgba(${theme[key]},1)`);
-        grd.addColorStop(.4, `rgba(${theme[key]},.35)`);
-        grd.addColorStop(1, `rgba(${theme[key]},0)`);
-        g.fillStyle = grd;
-        g.fillRect(0, 0, SPRITE, SPRITE);
-        sprites[key] = c;
+    // small blocky glow used under the cursor and behind big sparks
+    let glow = null;
+    function buildGlow() {
+      const S = 16;
+      glow = document.createElement("canvas");
+      glow.width = glow.height = S;
+      const g = glow.getContext("2d");
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const d = Math.hypot(x + .5 - S / 2, y + .5 - S / 2) / (S / 2);
+        if (d >= 1) continue;
+        // ordered (Bayer-style) dither so the falloff reads as pixel art
+        const level = (1 - d) * (1 - d);
+        const threshold = (((x & 1) * 2 + (y & 1) * 3) % 4) / 4;
+        if (level * 1.6 > threshold) {
+          g.fillStyle = `rgba(${theme.c1},${stepA(level)})`;
+          g.fillRect(x, y, 1, 1);
+        }
       }
     }
-    buildSprites();
-    document.addEventListener("palettechange", buildSprites);
+    buildGlow();
+    document.addEventListener("palettechange", buildGlow);
 
     function resize() {
-      // 1x resolution on purpose: everything here is a soft glow, and on
-      // high-DPI screens this cuts the pixels to clear and composite by 4x
-      W = innerWidth; H = innerHeight;
+      W = Math.ceil(innerWidth / PX); H = Math.ceil(innerHeight / PX);
       cv.width = W; cv.height = H;
-      const target = Math.round((W * H) / 24000);
+      ctx.imageSmoothingEnabled = false;
+      const target = Math.round((innerWidth * innerHeight) / 24000);
       while (embers.length < target) embers.push(makeEmber(true));
       embers.length = target;
     }
@@ -148,11 +174,11 @@
     function makeEmber(randomY) {
       return {
         x: Math.random() * W,
-        y: randomY ? Math.random() * H : H + 10,
-        vx: (Math.random() - .5) * .2,
-        vy: -(.15 + Math.random() * .35),
-        r: .6 + Math.random() * 1.6,
-        a: .06 + Math.random() * .2,
+        y: randomY ? Math.random() * H : H + 4,
+        vx: (Math.random() - .5) * .07,
+        vy: -(.05 + Math.random() * .12),
+        size: Math.random() < .8 ? 1 : 2,
+        a: .1 + Math.random() * .25,
         c: Math.random() < .75 ? "c1" : "c1light",
         tw: Math.random() * Math.PI * 2
       };
@@ -167,10 +193,10 @@
     }
 
     addEventListener("pointermove", e => {
-      mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true;
+      mouse.x = e.clientX / PX; mouse.y = e.clientY / PX; mouse.active = true;
       if (!fxOn) return;
       const dx = mouse.x - mouse.px, dy = mouse.y - mouse.py;
-      const speed = Math.min(Math.hypot(dx, dy), 60);
+      const speed = Math.min(Math.hypot(dx, dy) * PX, 60);
       if (mouse.px > -999) {
         // roughly one spark every ~24px of travel, so slow moves leave only a faint trail
         const n = Math.floor(speed / 24) + (Math.random() < (speed % 24) / 24 ? 1 : 0);
@@ -178,10 +204,10 @@
           const t = i / n;
           spawnSpark(
             mouse.px + dx * t, mouse.py + dy * t,
-            dx * .04 + (Math.random() - .5) * 1.2,
-            dy * .04 + (Math.random() - .5) * 1.2 - .3,
+            dx * .04 + (Math.random() - .5) * .4,
+            dy * .04 + (Math.random() - .5) * .4 - .1,
             30 + Math.random() * 30,
-            .9 + Math.random() * 1.5
+            Math.random() < .35 ? 2 : 1
           );
         }
       }
@@ -190,13 +216,37 @@
     document.addEventListener("pointerleave", () => { mouse.active = false; mouse.px = mouse.py = -999; });
 
     // exposed so the click handler can trigger a burst
-    burst = (x, y) => {
-      for (let i = 0; i < 30; i++) {
-        const a = (i / 30) * Math.PI * 2 + Math.random() * .2;
-        const s = 1.5 + Math.random() * 3;
-        spawnSpark(x, y, Math.cos(a) * s, Math.sin(a) * s, 45 + Math.random() * 35, 1 + Math.random() * 1.8);
+    burst = (cx, cy) => {
+      const x = cx / PX, y = cy / PX;
+      for (let i = 0; i < 26; i++) {
+        const a = (i / 26) * Math.PI * 2 + Math.random() * .2;
+        const s = .5 + Math.random() * 1.1;
+        spawnSpark(x, y, Math.cos(a) * s, Math.sin(a) * s, 40 + Math.random() * 35, Math.random() < .4 ? 2 : 1);
       }
     };
+
+    // a spark drawn as a pixel; big ones are a "+" sparkle with a white core
+    function drawSpark(s, k) {
+      const x = Math.round(s.x), y = Math.round(s.y);
+      const col = theme[s.c];
+      ctx.globalAlpha = stepA(Math.min(1, k * 1.1));
+      if (s.size === 2 && k > .35) {
+        ctx.fillStyle = `rgb(${col})`;
+        ctx.fillRect(x - 1, y, 3, 1);
+        ctx.fillRect(x, y - 1, 1, 3);
+        if (k > .7) {                           // long arms while it's fresh
+          ctx.globalAlpha *= .5;
+          ctx.fillRect(x - 2, y, 1, 1); ctx.fillRect(x + 2, y, 1, 1);
+          ctx.fillRect(x, y - 2, 1, 1); ctx.fillRect(x, y + 2, 1, 1);
+          ctx.globalAlpha /= .5;
+        }
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(x, y, 1, 1);
+      } else {
+        ctx.fillStyle = k > .75 ? "#fff" : `rgb(${col})`;   // flash white when born
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
 
     let cleared = false;
     function frame() {
@@ -209,27 +259,30 @@
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = "lighter";
 
-      // ambient embers
+      // ambient embers: drifting pixels pushed away by the cursor
+      const R = 140 / PX;
       for (const p of embers) {
         p.tw += .03;
         if (mouse.active) {
           const dx = p.x - mouse.x, dy = p.y - mouse.y;
           const d2 = dx * dx + dy * dy;
-          if (d2 < 140 * 140) {
-            const d = Math.sqrt(d2) || 1, f = (1 - d / 140) * .6;
+          if (d2 < R * R) {
+            const d = Math.sqrt(d2) || 1, f = (1 - d / R) * .2;
             p.vx += (dx / d) * f; p.vy += (dy / d) * f;
-            // faint link to the cursor
-            ctx.strokeStyle = `rgba(${theme[p.c]},${(1 - d / 140) * .14})`;
-            ctx.lineWidth = .6;
-            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+            // faint pixel line to the cursor
+            ctx.globalAlpha = stepA((1 - d / R) * .25);
+            ctx.strokeStyle = `rgb(${theme[p.c]})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(Math.round(p.x) + .5, Math.round(p.y) + .5);
+            ctx.lineTo(Math.round(mouse.x) + .5, Math.round(mouse.y) + .5); ctx.stroke();
           }
         }
-        p.vx *= .96; p.vy = p.vy * .96 - .012;
+        p.vx *= .96; p.vy = p.vy * .96 - .004;
         p.x += p.vx; p.y += p.vy;
-        if (p.y < -10 || p.x < -20 || p.x > W + 20) Object.assign(p, makeEmber(false));
-        const a = p.a * (.6 + .4 * Math.sin(p.tw));
-        ctx.fillStyle = `rgba(${theme[p.c]},${a})`;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+        if (p.y < -4 || p.x < -8 || p.x > W + 8) Object.assign(p, makeEmber(false));
+        ctx.globalAlpha = stepA(p.a * (.6 + .4 * Math.sin(p.tw)));
+        ctx.fillStyle = `rgb(${theme[p.c]})`;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
       }
 
       // cursor sparks
@@ -237,21 +290,18 @@
         const s = sparks[i];
         s.life--;
         if (s.life <= 0) { sparks.splice(i, 1); continue; }
-        s.vx *= .95; s.vy = s.vy * .95 + .03;
+        s.vx *= .95; s.vy = s.vy * .95 + .01;
         s.x += s.vx; s.y += s.vy;
-        const k = s.life / s.max;
-        const r = s.size * (0.4 + k) * 4;
-        ctx.globalAlpha = Math.min(1, k * .85);
-        ctx.drawImage(sprites[s.c], s.x - r, s.y - r, r * 2, r * 2);
+        drawSpark(s, s.life / s.max);
+      }
+
+      // blocky dithered glow under the cursor
+      if (mouse.active) {
+        ctx.globalAlpha = .22;
+        const G = 60 / PX * 2;
+        ctx.drawImage(glow, Math.round(mouse.x - G / 2), Math.round(mouse.y - G / 2), G, G);
       }
       ctx.globalAlpha = 1;
-
-      // soft glow under the cursor
-      if (mouse.active) {
-        ctx.globalAlpha = .08;
-        ctx.drawImage(sprites.c1, mouse.x - 90, mouse.y - 90, 180, 180);
-        ctx.globalAlpha = 1;
-      }
       ctx.globalCompositeOperation = "source-over";
     }
 
@@ -475,7 +525,7 @@
   // -------------------------------------------------------------------------
   // Clicks and hovers: sounds + click effects
   // -------------------------------------------------------------------------
-  const INTERACTIVE = "a, button, .card, .live-icon, summary, [role=button]";
+  const INTERACTIVE = "a, button, .card, .live-icon, summary, [role=button], [role=slider]";
   addEventListener("pointerdown", e => {
     const t = e.target;
     if (t.closest(INTERACTIVE)) { SFX.click(); return; }
@@ -661,4 +711,113 @@
     el.style.transitionDelay = (i % 4) * 70 + "ms";
     io.observe(el);
   });
+
+  // -------------------------------------------------------------------------
+  // Avatar: the photo starts pixelated (with a reduced, retro colour range) and
+  // steps up to full resolution on hover; leaving re-pixelates it. Touch
+  // screens have no hover, so there it resolves once when it comes into view.
+  // -------------------------------------------------------------------------
+  function avatar() {
+    const fig = $("#avatar");
+    if (!fig) return;
+    const frame = fig.querySelector(".avatar-frame");
+    const img = fig.querySelector("img"), cv = fig.querySelector("canvas");
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    const LEVELS = [18, 24, 32, 44, 64, 96, 0];           // pixels across; 0 = full photo
+    let level = 0, target = 0, timer = 0, ready = false;
+
+    function draw(n) {
+      if (!n) { cv.style.opacity = 0; return; }
+      cv.width = cv.height = n;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(img, 0, 0, n, n);
+      // posterize: 6 levels per channel, like a limited console palette
+      const d = ctx.getImageData(0, 0, n, n), p = d.data;
+      for (let i = 0; i < p.length; i += 4) {
+        p[i] = Math.round(p[i] / 51) * 51; p[i + 1] = Math.round(p[i + 1] / 51) * 51; p[i + 2] = Math.round(p[i + 2] / 51) * 51;
+      }
+      ctx.putImageData(d, 0, 0);
+      cv.style.opacity = 1;
+    }
+
+    function stepTo(t) {
+      target = t;
+      if (timer || !ready) return;
+      timer = setInterval(() => {
+        if (level === target) { clearInterval(timer); timer = 0; return; }
+        level += level < target ? 1 : -1;
+        draw(LEVELS[level]);
+      }, 60);
+    }
+
+    const full = LEVELS.length - 1;
+    img.decode().catch(() => {}).then(() => {
+      ready = true;
+      if (reducedMotion) { level = full; draw(0); return; }
+      draw(LEVELS[0]);
+      if (matchMedia("(hover: none)").matches) {
+        // phones/tablets: resolve once when visible, then stay sharp
+        const reveal = () => {
+          if (document.body.classList.contains("boot-active")) { setTimeout(reveal, 200); return; }
+          setTimeout(() => { stepTo(full); SFX.pixel(true); }, 400);
+        };
+        const o = new IntersectionObserver(([en]) => {
+          if (!en.isIntersecting) return;
+          o.disconnect();
+          reveal();
+        }, { threshold: .6 });
+        o.observe(fig);
+      }
+    });
+
+    frame.addEventListener("pointerenter", e => {
+      if (e.pointerType !== "mouse" || reducedMotion) return;
+      stepTo(full); SFX.pixel(true);
+    });
+    frame.addEventListener("pointerleave", e => {
+      if (e.pointerType !== "mouse" || reducedMotion) return;
+      stepTo(0); SFX.pixel(false);
+    });
+  }
+  avatar();
+
+  // -------------------------------------------------------------------------
+  // Typewriter: short labels and titles type themselves in with a block cursor
+  // the first time they scroll into view. Fast (under half a second) and the
+  // full text keeps its space the whole time, so nothing jumps while reading.
+  // -------------------------------------------------------------------------
+  const TYPE_SEL = ".hero .eyebrow, .section .eyebrow, .section h2, .section .sub, .timeline .when, .focus h3, .skill-group h3";
+
+  function typeOut(el) {
+    if (document.body.classList.contains("boot-active")) { setTimeout(() => typeOut(el), 150); return; }
+    const text = el.textContent;
+    if (!text.trim() || el.children.length) return;          // plain text only
+    el.setAttribute("aria-label", text);
+    const typed = document.createTextNode("");
+    const cursor = document.createElement("span");
+    const rest = document.createElement("span");
+    cursor.className = "tw-cursor"; rest.className = "tw-rest";
+    cursor.setAttribute("aria-hidden", "true"); rest.setAttribute("aria-hidden", "true");
+    el.textContent = "";
+    el.append(typed, cursor, rest);
+    const total = Math.min(450, Math.max(180, text.length * 22));   // ms for the whole line
+    const t0 = performance.now();
+    (function step(now) {
+      const n = Math.min(text.length, Math.ceil(((now - t0) / total) * text.length));
+      typed.data = text.slice(0, n);
+      rest.textContent = text.slice(n);
+      if (n < text.length) { requestAnimationFrame(step); return; }
+      cursor.classList.add("blink");                        // blink twice, then clean up
+      setTimeout(() => { el.textContent = text; el.removeAttribute("aria-label"); }, 1000);
+    })(t0);
+  }
+
+  if (!reducedMotion) {
+    const tio = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (en.isIntersecting) { tio.unobserve(en.target); typeOut(en.target); }
+      });
+    }, { rootMargin: "0px 0px -10% 0px" });
+    document.querySelectorAll(TYPE_SEL).forEach(el => tio.observe(el));
+  }
 })();
