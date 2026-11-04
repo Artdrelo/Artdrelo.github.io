@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jorge Andrés Gómez — Senior Game Developer</title>
+  <meta name="description" content="Senior Unity game developer with 9+ years shipping mobile, VR/AR and live-service games. Gameplay systems, editor tools, shaders and game feel.">
+  <meta property="og:title" content="Jorge Andrés Gómez — Senior Game Developer">
+  <meta property="og:description" content="Gameplay systems, editor tools, shaders and game feel. 9+ years in Unity.">
+  <meta property="og:image" content="assets/img/gabby.jpg">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230b0c10'/><text x='16' y='22' font-family='monospace' font-size='16' font-weight='700' fill='%239dff5e' text-anchor='middle'>JG</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Boot sequence (skippable) -->
+  <div id="boot" aria-hidden="true">
+    <div class="boot-inner">
+      <div class="boot-title">JORGE.ANDRES.GOMEZ</div>
+      <div class="boot-sub">build 9.0 · unity · c# · hlsl</div>
+      <ul class="boot-lines" id="boot-lines"></ul>
+      <div class="boot-bar"><span id="boot-fill"></span></div>
+      <div class="boot-foot"><span id="boot-pct">0%</span><span>press any key to skip</span></div>
+    </div>
+  </div>
+
+  <!-- Global FX layers -->
+  <canvas id="particles" aria-hidden="true"></canvas>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <header class="nav">
+    <a href="#top" class="nav-logo">JG<span>_</span></a>
+    <nav>
+      <a href="#work">Work</a>
+      <a href="#focus">Focus</a>
+      <a href="#experience">Experience</a>
+      <a href="#skills">Skills</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <button id="fx-toggle" class="fx-toggle" type="button" aria-pressed="true" title="Toggle visual effects">FX on</button>
+  </header>
+
+  <main id="top">
+
+    <!-- HERO -->
+    <section class="hero">
+      <canvas id="hero-shader" aria-hidden="true"></canvas>
+      <div class="hero-content container">
+        <p class="eyebrow">SENIOR GAME DEVELOPER · TECHNICAL ART</p>
+        <h1 class="glitch" data-text="Jorge Andrés Gómez">Jorge Andrés Gómez</h1>
+        <p class="lede">
+          Unity developer with <strong>9+ years</strong> building gameplay systems, editor tools and
+          shaders across mobile, VR/AR and live-service games — from <em>Apple Arcade</em> titles to
+          a <em>100M+ download</em> classic. I care about mechanics that feel great to play and look great doing it.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#work">View work</a>
+          <a class="btn" href="assets/CV_JorgeAndresGomez.pdf" target="_blank" rel="noopener">Résumé</a>
+          <a class="btn" href="https://www.linkedin.com/in/andres-gomez-44138a148/" target="_blank" rel="noopener">LinkedIn</a>
+        </div>
+        <dl class="stats">
+          <div><dt>9+</dt><dd>years in Unity</dd></div>
+          <div><dt>100M+</dt><dd>downloads shipped on</dd></div>
+          <div><dt>20+</dt><dd>games delivered</dd></div>
+          <div><dt>6</dt><dd>devs led &amp; mentored</dd></div>
+        </dl>
+      </div>
+      <a href="#work" class="scroll-hint" aria-label="Scroll to work"><span></span></a>
+    </section>
+
+    <!-- WORK -->
+    <section id="work" class="section container">
+      <p class="eyebrow reveal">SELECTED PROJECTS</p>
+      <h2 class="reveal">Featured work</h2>
+      <div class="grid grid-featured" id="featured-grid"></div>
+
+      <h3 class="sub reveal">More work</h3>
+      <div class="grid grid-more" id="more-grid"></div>
+    </section>
+
+    <!-- FOCUS -->
+    <section id="focus" class="section container">
+      <p class="eyebrow reveal">WHAT I BRING</p>
+      <h2 class="reveal">Technical focus</h2>
+      <div class="focus-list">
+        <article class="focus reveal">
+          <span class="focus-num">01</span>
+          <div>
+            <h3>Gameplay &amp; game feel</h3>
+            <p>Component-driven 2D/3D physics mechanics that stay simple for designers and artists: squash-and-stretch bouncing, snap sockets, synced music systems and procedural dance animation.</p>
+            <div class="links"><a href="#p/gabbys-dollhouse">Gabby's Dollhouse →</a><a href="#p/jinjas-garden">Jinja's Garden →</a></div>
+          </div>
+        </article>
+        <article class="focus reveal">
+          <span class="focus-num">02</span>
+          <div>
+            <h3>Shaders &amp; technical art</h3>
+            <p>Custom shaders, particle systems and VFX that solve problems sitting between art and code, from outlined UI sprite recolouring to event-driven explosion effects and live-event visuals.</p>
+            <div class="links"><a href="#p/jinjas-garden">Jinja's Garden →</a><a href="#p/coin-dozer">Coin Dozer →</a></div>
+          </div>
+        </article>
+        <article class="focus reveal">
+          <span class="focus-num">03</span>
+          <div>
+            <h3>Tools &amp; pipeline</h3>
+            <p>Unity Editor tools for design and tech-art teams, build-pipeline post-processing for iOS, an automated localization screenshot workflow for QA, and CI/CD with Git branching strategies.</p>
+            <div class="links"><a href="#p/jinjas-garden">Jinja's Garden →</a></div>
+          </div>
+        </article>
+        <article class="focus reveal">
+          <span class="focus-num">04</span>
+          <div>
+            <h3>Live service &amp; SDKs</h3>
+            <p>Unity IAP migrations with subscriptions, analytics swaps with zero player impact, asset bundles and AWS, QR scanning and Nintendo Joy-Con support through third-party SDKs.</p>
+            <div class="links"><a href="#p/coin-dozer">Coin Dozer →</a><a href="#p/coin-dozer-casino">Coin Dozer: Casino →</a></div>
+          </div>
+        </article>
+        <article class="focus reveal">
+          <span class="focus-num">05</span>
+          <div>
+            <h3>VR / AR &amp; leadership</h3>
+            <p>VR and AR projects for HTC Vive, Oculus Quest and Kinect, and five years leading teams across South America, architecting client–server games and mentoring developers.</p>
+            <div class="links"><a href="#p/vial-security">Vial Security →</a><a href="#p/archery-vr">Archery VR →</a></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- EXPERIENCE -->
+    <section id="experience" class="section container">
+      <p class="eyebrow reveal">WHERE I'VE WORKED</p>
+      <h2 class="reveal">Experience</h2>
+      <ol class="timeline">
+        <li class="reveal">
+          <span class="when">May 2025 – Sep 2026</span>
+          <h3>Senior Game Developer · Scubalight Studios</h3>
+          <span class="where">Canada · Remote</span>
+          <p>Part of Amber Studio's co-development team alongside Sago Mini on <em>Jinja's Garden</em> (Apple Arcade) and <em>Gabby's Dollhouse: Cat Games</em>. Gameplay features, editor tools, pipeline integrations, Joy-Con and QR SDKs, shaders and VFX.</p>
+        </li>
+        <li class="reveal">
+          <span class="when">Feb 2023 – Mar 2025</span>
+          <h3>Senior Game Developer · RM2</h3>
+          <span class="where">Medellín / USA · Remote</span>
+          <p>Live development on <em>Coin Dozer</em> (100M+) and <em>Coin Dozer: Casino</em> (10M+) with a team of 8+. Unity IAP migration, Firebase metrics replacement, iOS build post-processing, refactors, shaders and a Halloween event; 4.2★ rating and &lt;0.5% crash rate.</p>
+        </li>
+        <li class="reveal">
+          <span class="when">May 2022 – Feb 2023</span>
+          <h3>Tech Lead · TGA</h3>
+          <span class="where">Miami · Remote</span>
+          <p>Led and mentored 6 developers across South America on 5+ client–server training games for Cruz Verde, Olé, Bimbo and others. Accounts, leaderboards, progress sync and new CI/CD pipelines.</p>
+        </li>
+        <li class="reveal">
+          <span class="when">Oct 2017 – May 2022</span>
+          <h3>Tech Lead · Indie Level Studio</h3>
+          <span class="where">Medellín · Hybrid</span>
+          <p>Directed 15+ training, educational and casual games, including <em>Logicubes</em>. Modular gameplay architecture, VR projects for HTC Vive and Oculus Quest, 60 FPS on mid-tier Android, and casino games backed by a private server.</p>
+        </li>
+        <li class="reveal">
+          <span class="when">Mar 2017 – Sep 2017</span>
+          <h3>Junior Game Developer · Tecnoparque</h3>
+          <span class="where">Medellín · On site</span>
+          <p>A VR architectural tour for HTC Vive and an AR virtual fitting room for Kinect 2.0.</p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- SKILLS -->
+    <section id="skills" class="section container">
+      <p class="eyebrow reveal">TOOLBOX</p>
+      <h2 class="reveal">Skills</h2>
+      <div class="skills">
+        <div class="skill-group reveal">
+          <h3>Engine &amp; programming</h3>
+          <ul><li>Unity 3D/2D</li><li>C#</li><li>OOP / SOLID</li><li>Optimization</li><li>Project / SDK maintenance</li><li>UI/UX programming</li></ul>
+        </div>
+        <div class="skill-group reveal">
+          <h3>Gameplay</h3>
+          <ul><li>Game mechanics</li><li>Game feel</li><li>Physics</li><li>Shaders</li><li>Technical art (VFX)</li><li>Particle systems</li></ul>
+        </div>
+        <div class="skill-group reveal">
+          <h3>Platforms &amp; systems</h3>
+          <ul><li>iOS / macOS</li><li>Android</li><li>VR / AR</li><li>WebGL</li><li>CI/CD</li><li>Client–server</li></ul>
+        </div>
+        <div class="skill-group reveal">
+          <h3>Leadership</h3>
+          <ul><li>Tech lead</li><li>Mentoring</li><li>Project management</li><li>Cross-functional collaboration</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section id="about" class="section container about">
+      <div class="reveal">
+        <p class="eyebrow">ABOUT</p>
+        <h2>About me</h2>
+        <p>I'm a senior game developer from Medellín, Colombia. Over 9+ years I've shipped Unity games on iOS, Android, VR and AR, led teams, and built the tools and pipelines that help artists and designers move faster. SOLID and OOP are how I keep multidisciplinary teams productive.</p>
+        <p>In my free time I'm an illustrator and 2D artist, so composition, colour theory and shader programming shape how I think about game feel. My focus lately has been mechanics that feel compelling to play while staying beautiful to look at.</p>
+      </div>
+      <div class="reveal">
+        <p class="eyebrow">EDUCATION</p>
+        <div class="edu">
+          <h3>Game Developer — Associate Degree</h3>
+          <p>SENA · Medellín · 2015 – 2017</p>
+        </div>
+        <div class="edu">
+          <h3>Undergraduate coursework, Civil Engineering</h3>
+          <p>Universidad Nacional de Colombia · 2011 – 2014<br><span class="muted">Calculus, linear algebra and physics, now applied to game physics and shader maths.</span></p>
+        </div>
+        <p class="eyebrow" style="margin-top:2rem">LANGUAGES</p>
+        <p>Spanish (native) · English (professional working proficiency)</p>
+      </div>
+    </section>
+
+    <!-- CONTACT -->
+    <section id="contact" class="section container contact">
+      <p class="eyebrow reveal">CONTACT</p>
+      <h2 class="reveal">Let's make something that feels good to play.</h2>
+      <p class="reveal">Medellín, Colombia · Open to freelance and full-time roles.</p>
+      <a class="email reveal" href="mailto:artdrelo@gmail.com">artdrelo@gmail.com</a>
+      <div class="hero-cta reveal">
+        <a class="btn btn-primary" href="mailto:artdrelo@gmail.com">Email</a>
+        <a class="btn" href="https://www.linkedin.com/in/andres-gomez-44138a148/" target="_blank" rel="noopener">LinkedIn</a>
+        <a class="btn" href="https://github.com/Artdrelo" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href="https://www.behance.net/andresgomez93" target="_blank" rel="noopener">Behance</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <span>© <span id="year"></span> Jorge Andrés Gómez</span>
+    <span class="muted">Click anywhere for a burst ✦</span>
+  </footer>
+
+  <!-- Project modal -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <button class="modal-close" type="button" data-close aria-label="Close">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="js/projects.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
