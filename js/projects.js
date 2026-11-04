@@ -248,3 +248,46 @@ window.PROJECTS = [
     ]
   }
 ];
+
+// ---------------------------------------------------------------------------
+// LIVE GAMES: the "Live on stores" section. Clicking the icon opens the first
+// store; every store also gets its own button.
+// store: "appstore" | "googleplay" | "steam"
+// ---------------------------------------------------------------------------
+window.LIVE_GAMES = [
+  {
+    title: "Gabby's Dollhouse: Cat Games",
+    icon: "assets/img/icons/gabby.jpg",
+    note: "Sago Mini · DreamWorks",
+    stores: [
+      { store: "appstore", url: "https://apps.apple.com/us/app/gabbys-dollhouse-cat-games/id1488385103" },
+      { store: "googleplay", url: "https://play.google.com/store/apps/details?id=com.spinmaster.gabbysdollhouse" }
+    ]
+  },
+  {
+    title: "Sago Mini Jinja's Garden",
+    icon: "assets/img/icons/jinja.jpg",
+    note: "Apple Arcade",
+    stores: [
+      { store: "appstore", url: "https://apps.apple.com/us/app/sago-mini-jinjas-garden/id6477492925" }
+    ]
+  },
+  {
+    title: "Coin Dozer",
+    icon: "assets/img/icons/coindozer.jpg",
+    note: "Game Circus · 100M+ downloads",
+    stores: [
+      { store: "googleplay", url: "https://play.google.com/store/apps/details?id=com.leftover.CoinDozer" },
+      { store: "appstore", url: "https://apps.apple.com/us/app/coin-dozer/id372836496" }
+    ]
+  },
+  {
+    title: "Logicubes",
+    icon: "assets/img/icons/logicubes.png",
+    note: "Indie Level Studio",
+    stores: [
+      { store: "steam", url: "https://store.steampowered.com/app/1856120/Logicubes/" },
+      { store: "googleplay", url: "https://play.google.com/store/apps/details?id=com.IndieLevelStudio.TestProject" }
+    ]
+  }
+];

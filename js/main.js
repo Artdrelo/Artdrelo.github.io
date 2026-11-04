@@ -74,13 +74,23 @@
   applyFx();
 
   // -------------------------------------------------------------------------
+  // Colour palettes: defined and applied in js/palette.js (loaded in <head>).
+  // THEME.c1 = main colour (cursor FX), THEME.water = the other four, sorted
+  // dark -> bright, used by the hero water.
+  // -------------------------------------------------------------------------
+  const theme = window.THEME;
+  $("#palette-toggle").addEventListener("click", () => setPalette(theme.index + 1));
+
+  // -------------------------------------------------------------------------
   // Cursor particles — sparks trail the mouse, ambient embers drift and get
   // pushed away by the cursor, clicks emit a radial burst.
   // -------------------------------------------------------------------------
   function particles() {
     const cv = $("#particles");
     const ctx = cv.getContext("2d");
-    const COLORS = [[157, 255, 94], [205, 255, 170], [194, 123, 255]];
+    // colours are looked up from `theme` at draw time so palette switches apply instantly;
+    // the cursor effect only uses the main colour (c1) and a lighter tint of it
+    const SPARK_KEYS = ["c1", "c1", "c1light"];
     let W = 0, H = 0, dpr = 1;
     const sparks = [];
     const embers = [];
@@ -104,7 +114,7 @@
         vy: -(.15 + Math.random() * .35),
         r: .6 + Math.random() * 1.6,
         a: .06 + Math.random() * .2,
-        c: COLORS[Math.random() < .8 ? 0 : 2],
+        c: Math.random() < .75 ? "c1" : "c1light",
         tw: Math.random() * Math.PI * 2
       };
     }
@@ -113,7 +123,7 @@
       if (sparks.length > 160) sparks.shift();
       sparks.push({
         x, y, vx, vy, life, max: life, size,
-        c: COLORS[(Math.random() * COLORS.length) | 0]
+        c: SPARK_KEYS[(Math.random() * SPARK_KEYS.length) | 0]
       });
     }
 
@@ -165,7 +175,7 @@
             const d = Math.sqrt(d2) || 1, f = (1 - d / 140) * .6;
             p.vx += (dx / d) * f; p.vy += (dy / d) * f;
             // faint link to the cursor
-            ctx.strokeStyle = `rgba(${p.c},${(1 - d / 140) * .1})`;
+            ctx.strokeStyle = `rgba(${theme[p.c]},${(1 - d / 140) * .1})`;
             ctx.lineWidth = .6;
             ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
           }
@@ -174,7 +184,7 @@
         p.x += p.vx; p.y += p.vy;
         if (p.y < -10 || p.x < -20 || p.x > W + 20) Object.assign(p, makeEmber(false));
         const a = p.a * (.6 + .4 * Math.sin(p.tw));
-        ctx.fillStyle = `rgba(${p.c},${a})`;
+        ctx.fillStyle = `rgba(${theme[p.c]},${a})`;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
       }
 
@@ -188,8 +198,8 @@
         const k = s.life / s.max;
         const r = s.size * (0.4 + k);
         const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 3);
-        g.addColorStop(0, `rgba(${s.c},${k * .35})`);
-        g.addColorStop(1, `rgba(${s.c},0)`);
+        g.addColorStop(0, `rgba(${theme[s.c]},${k * .35})`);
+        g.addColorStop(1, `rgba(${theme[s.c]},0)`);
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(s.x, s.y, r * 3, 0, Math.PI * 2); ctx.fill();
       }
@@ -197,8 +207,8 @@
       // soft glow under the cursor
       if (mouse.active) {
         const g = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 90);
-        g.addColorStop(0, "rgba(157,255,94,.04)");
-        g.addColorStop(1, "rgba(157,255,94,0)");
+        g.addColorStop(0, `rgba(${theme.c1},.04)`);
+        g.addColorStop(1, `rgba(${theme.c1},0)`);
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 90, 0, Math.PI * 2); ctx.fill();
       }
@@ -213,13 +223,13 @@
 
   // -------------------------------------------------------------------------
   // Hero shader — underwater caustics with light shafts; the cursor drops a
-  // ripple into the surface. Kept deliberately cheap (no noise textures, no
-  // loops, ~a dozen sin/cos per pixel) and rendered at reduced resolution.
+  // ripple into the surface. Kept cheap (no textures, two 4-step loops) and
+  // rendered at reduced resolution with an adaptive pixel budget.
   // -------------------------------------------------------------------------
   function heroShader() {
     const cv = $("#hero-shader");
     const gl = cv.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
-    if (!gl) { cv.style.background = "radial-gradient(circle at 70% 20%, #0d2b27, #0b0c10 65%)"; return; }
+    if (!gl) { cv.style.background = "radial-gradient(circle at 70% 20%, rgba(var(--deep-rgb),.55), #0b0c10 65%)"; return; }
 
     const vs = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
     const fs = `
@@ -229,15 +239,31 @@
       precision mediump float;
       #endif
       uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse;
+      uniform vec3 uC2, uC3, uC4, uC5;   // non-main palette colours, dark -> bright (c1 is kept for the cursor FX)
 
-      // Warped sine lattice: the zero-crossings of sin(x)+sin(y) form a mesh,
-      // and warping it with slow sines turns that mesh into caustic-like lines.
-      float caustic(vec2 q, float t){
-        q += .45 * vec2(sin(q.y*.9 + t), cos(q.x*.8 - t*.9));
-        q += .30 * vec2(sin(q.y*1.7 - t*1.2 + 1.), cos(q.x*1.9 + t*.7));
-        float v = sin(q.x) + sin(q.y);
-        return pow(1. - clamp(abs(v)*.5, 0., 1.), 4.);
+      // Iterative domain-warp caustic: each pass feeds the warped coordinate
+      // back in, so the bright filaments braid and merge irregularly instead of
+      // forming a regular grid. 4 passes, ~6 trig calls each, no textures.
+      float caustic(vec2 p, float t){
+        vec2 i = p;
+        float c = 1.;
+        for (int n = 0; n < 4; n++) {
+          float tt = t * (1. - 3.5 / float(n + 1));
+          i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+          float s = sin(i.x + tt), k = cos(i.y + tt);
+          // 1/length(1/s, 1/k) written without divisions by zero
+          c += abs(s * k) / (1.25 * sqrt(s*s + k*k) + 1e-4);
+        }
+        c /= 4.;
+        c = 1.17 - pow(c, 1.4);
+        return pow(abs(c), 8.);
       }
+
+      mat2 rot(float a){ float s = sin(a), c = cos(a); return mat2(c, -s, s, c); }
+
+      // scale a palette colour to a target brightness, so a bright palette
+      // colour doesn't wash out the dark water body
+      vec3 dim(vec3 c, float k){ return c * k * min(1., .25 / max(.01, dot(c, vec3(.3, .59, .11)))); }
 
       void main(){
         vec2 uv = gl_FragCoord.xy / uRes.y;
@@ -249,26 +275,38 @@
         float dl = length(d) + 1e-4;
         vec2 p = uv + d / dl * sin(dl*38. - t*4.) * exp(-dl*6.) * .03;
 
-        float c1 = caustic(p*13., t*.55);
-        float c2 = caustic(p*17.3 + vec2(3.1, 1.7), -t*.42 + 2.);
-        float c = c1*.35 + c1*c2*1.8;
+        // slow large-scale swell bends the whole pattern so it never looks tiled
+        p += .05 * vec2(sin(p.y*2.3 + t*.21), cos(p.x*1.9 - t*.17));
 
-        vec3 deep    = vec3(.004, .018, .026);
-        vec3 shallow = vec3(.020, .100, .105);
+        // two layers at different scale, angle and speed; where they cross you
+        // get the bright hot spots real caustics have
+        float l1 = caustic(rot(.55) * p * 11. + vec2(5.2, 1.3), t * .45 + 23.);
+        float l2 = caustic(rot(-.9) * p * 15.5 + vec2(-2.7, 8.1), t * .33 + 11.);
+        float a = l1 * (.6 + 2. * l1), b = l2 * (.6 + 2. * l2);   // sharpen the filaments
+
+        // slowly drifting colour fields decide which palette colour lights each area
+        float m  = .5 + .5 * sin(uv.x * 2.2 + sin(uv.y * 1.6 + t * .09) * 1.8 + t * .06);
+        float m2 = .5 + .5 * sin(uv.y * 2.7 - uv.x * .8 + t * .05 + 1.3);
+
+        // water body: darkest colour in the depths rising to the next one near the surface
+        vec3 deep    = dim(uC2, .32);
+        vec3 shallow = dim(mix(uC3, uC2, m2 * .5), .34);
         vec3 col = mix(deep, shallow, smoothstep(0., 1., st.y));
 
-        vec3 light = mix(vec3(.62, 1., .37), vec3(.55, 1., .85), .45);   // accent pushed toward aqua
-        col += light * c * (.18 + .32*st.y);
+        vec3 lift2 = min(uC2 * 2.4, vec3(1.));          // c2 brightened enough to read as light
+        vec3 tintA = mix(mix(uC4, uC5, m), lift2, smoothstep(.55, 1., m2) * .55);
+        vec3 tintB = mix(uC5, mix(uC3 * 1.7, lift2, .35), m2);
+        float depthK = .35 + .65 * st.y;               // light weakens with depth
+        col += tintA * a * .42 * depthK;
+        col += tintB * b * .26 * depthK;
+        col += mix(uC5, vec3(1.), .4) * l1 * l2 * 1.3 * depthK;
 
         // god rays from the surface
         float r = sin(st.x*9. + sin(st.x*3. + t*.25)*1.6 + st.y*1.2);
-        col += vec3(.5, 1., .75) * pow(.5 + .5*r, 8.) * smoothstep(.15, 1., st.y) * .10;
-
-        // violet tint sinking into the depths
-        col += vec3(.30, .12, .55) * (1. - st.y) * .045;
+        col += mix(uC4, uC3, m2) * pow(.5 + .5*r, 8.) * smoothstep(.15, 1., st.y) * .09;
 
         // faint glint where the cursor touches the water
-        col += light * exp(-dl*dl*60.) * .05;
+        col += uC4 * exp(-dl*dl*60.) * .05;
 
         float vig = smoothstep(1.4, .2, length(st - .5) * 1.6);
         gl_FragColor = vec4(col * vig, 1.);
@@ -294,6 +332,7 @@
     const uRes = gl.getUniformLocation(prog, "uRes");
     const uTime = gl.getUniformLocation(prog, "uTime");
     const uMouse = gl.getUniformLocation(prog, "uMouse");
+    const uCols = [2, 3, 4, 5].map(k => gl.getUniformLocation(prog, "uC" + k));
 
     // Resolution budget: render a capped number of pixels and let CSS upscale.
     // Weaker devices start with a smaller budget, and if frames still run slow
@@ -345,6 +384,7 @@
       gl.uniform2f(uRes, cv.width, cv.height);
       gl.uniform1f(uTime, reducedMotion ? 0 : ((now - start) / 1000) % 3600);
       gl.uniform2f(uMouse, cur.x, cur.y);
+      uCols.forEach((u, k) => { const c = theme.water[k]; gl.uniform3f(u, c[0] / 255, c[1] / 255, c[2] / 255); });
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     })(start);
   }
@@ -371,6 +411,24 @@
   }
   $("#featured-grid").innerHTML = PROJECTS.filter(p => p.featured).map(cardHTML).join("");
   $("#more-grid").innerHTML = PROJECTS.filter(p => !p.featured).map(cardHTML).join("");
+
+  // -------------------------------------------------------------------------
+  // Live games (data: LIVE_GAMES in js/projects.js)
+  // -------------------------------------------------------------------------
+  const STORE_LABEL = { appstore: "App Store", googleplay: "Google Play", steam: "Steam" };
+  $("#live-grid").innerHTML = (window.LIVE_GAMES || []).map((g, i) => `
+    <article class="live reveal" style="--live: var(--accent-${2 + (i % 3)})">
+      <a class="live-icon" href="${esc(g.stores[0].url)}" target="_blank" rel="noopener" aria-label="${esc(g.title)} on ${STORE_LABEL[g.stores[0].store]}">
+        <img src="${esc(g.icon)}" alt="" loading="lazy" width="256" height="256">
+      </a>
+      <div class="live-body">
+        <h3>${esc(g.title)}</h3>
+        ${g.note ? `<p>${esc(g.note)}</p>` : ""}
+        <div class="live-stores">
+          ${g.stores.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener" class="store store-${s.store}">${STORE_LABEL[s.store] || s.store} ↗</a>`).join("")}
+        </div>
+      </div>
+    </article>`).join("");
 
   document.querySelectorAll(".card").forEach(card => {
     card.addEventListener("click", () => { location.hash = "p/" + card.dataset.slug; });
