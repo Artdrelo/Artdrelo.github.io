@@ -214,9 +214,9 @@ window.SFX = (() => {
   // Volume: 5 levels from the nav control (0 = off), remembered.
   // Starts after the first click/key (browser rule) and pauses in hidden tabs.
   // -------------------------------------------------------------------------
-  const MUSIC_MAX = 0.75;                                  // gain at the top level
-  const LEVELS_N = 5, DEFAULT_LEVEL = 3;                   // default = 0.45 gain
-  const BPM = 33, STEP = 60 / BPM / 4;                    // one 16th note
+  const MUSIC_MAX = 0.6;                                   // gain at the top level
+  const LEVELS_N = 5, DEFAULT_LEVEL = 3;                   // default = 0.36 gain
+  const BPM = 35, STEP = 60 / BPM / 4;                    // one 16th note
   const SWING = .18;                                       // gentle swing on the off-beat 16ths
   const C = {                                              // chords: bass root + voicing (MIDI)
     D:   { bass: 38, notes: [61, 64, 66, 69] },  // Dmaj9   (D  - C# E F# A)
@@ -242,13 +242,13 @@ window.SFX = (() => {
     none: ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
   };
   // harp patterns: [chord tone index, octave] per 16th (null = rest).
-  // The last 16th of every beat is a rest (about a quarter of the notes), so
-  // the arpeggio breathes instead of running non-stop.
+  // At most 2 notes per beat, never on neighbouring 16ths, so the arpeggio
+  // breathes instead of running non-stop.
   const _ = null;
   const HARP = {
-    cascade: [[0,0],[1,0],[2,0],_, [0,1],[1,1],[2,1],_, [0,2],[3,1],[2,1],_, [0,1],[3,0],[2,0],_],
+    cascade: [[0,0],_,[2,0],_, [0,1],_,[2,1],_, [0,2],_,[2,1],_, [0,1],_,[2,0],_],
     waves:   [[0,1],_,[2,1],_, [1,1],_,_,_, [2,1],_,[0,2],_, [3,1],_,_,_],
-    fall:    [[0,2],[3,1],[2,1],_, [0,1],[3,0],[2,0],_, [0,2],[3,1],[2,1],_, [0,1],[3,0],[2,0],_]
+    fall:    [[0,2],_,[2,1],_, [0,1],_,[2,0],_, [0,2],_,[2,1],_, [0,1],_,[2,0],_]
   };
 
   let level = DEFAULT_LEVEL;
@@ -262,14 +262,12 @@ window.SFX = (() => {
   let bus = null, playing = false, timer = 0, nextTime = 0, stepIdx = 0, crackleSrc = null;
   let skipSteps = new Set();                               // harp notes left out of the current bar
 
-  // each bar (phrase) leaves out 1 or 2 random harp notes from the middle of
-  // its runs: never the bar's first note, so the downbeat stays clear
+  // each bar (phrase) leaves out 1 random harp note: never the bar's first
+  // note, so the downbeat stays clear
   function pickSkips(pattern) {
     const playable = [];
     pattern.forEach((p, i) => { if (p && i > 0) playable.push(i); });
-    const n = Math.random() < .5 ? 1 : 2, out = new Set();
-    while (out.size < n && out.size < playable.length) out.add(playable[(Math.random() * playable.length) | 0]);
-    return out;
+    return new Set(playable.length ? [playable[(Math.random() * playable.length) | 0]] : []);
   }
 
   function makeBus() {
@@ -332,7 +330,7 @@ window.SFX = (() => {
     }
     crackleSrc = ctx.createBufferSource();
     crackleSrc.buffer = buf; crackleSrc.loop = true;
-    const g = ctx.createGain(); g.gain.value = .5;
+    const g = ctx.createGain(); g.gain.value = .2;   // vinyl crackle level
     crackleSrc.connect(g).connect(bus);
     crackleSrc.start();
   }
