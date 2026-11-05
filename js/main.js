@@ -64,6 +64,15 @@
   boot();
 
   // -------------------------------------------------------------------------
+  // Intro gate (js/intro.js): first visit only, opened right away so it sits
+  // behind the loading screen and the page is never shown before it. Direct
+  // links to a project skip it. The footer button replays it any time.
+  // -------------------------------------------------------------------------
+  const introBusy = () => document.body.classList.contains("boot-active") || document.body.classList.contains("gate-active");
+  if (window.IntroGate && !IntroGate.done && !location.hash.startsWith("#p/")) IntroGate.open();
+  $("#replay-intro")?.addEventListener("click", () => IntroGate.open());
+
+  // -------------------------------------------------------------------------
   // FX toggle
   // -------------------------------------------------------------------------
   const fxBtn = $("#fx-toggle");
@@ -529,7 +538,7 @@
   addEventListener("pointerdown", e => {
     const t = e.target;
     if (t.closest(INTERACTIVE)) { SFX.click(); return; }
-    if (!fxOn || t.closest("iframe, .modal-panel, .modal-backdrop, input, textarea")) return;
+    if (!fxOn || t.closest("iframe, .modal-panel, .modal-backdrop, input, textarea, .gate")) return;
     burst(e.clientX, e.clientY);
     if (isOverWater(e.clientX, e.clientY)) { dropAt(e.clientX, e.clientY); SFX.water(); }
     else SFX.sparkle();
@@ -758,7 +767,7 @@
       if (matchMedia("(hover: none)").matches) {
         // phones/tablets: resolve once when visible, then stay sharp
         const reveal = () => {
-          if (document.body.classList.contains("boot-active")) { setTimeout(reveal, 200); return; }
+          if (introBusy()) { setTimeout(reveal, 200); return; }
           setTimeout(() => { stepTo(full); SFX.pixel(true); }, 400);
         };
         const o = new IntersectionObserver(([en]) => {
@@ -789,7 +798,7 @@
   const TYPE_SEL = ".hero .eyebrow, .section .eyebrow, .section h2, .section .sub, .timeline .when, .focus h3, .skill-group h3";
 
   function typeOut(el) {
-    if (document.body.classList.contains("boot-active")) { setTimeout(() => typeOut(el), 150); return; }
+    if (introBusy()) { setTimeout(() => typeOut(el), 150); return; }
     const text = el.textContent;
     if (!text.trim() || el.children.length) return;          // plain text only
     el.setAttribute("aria-label", text);

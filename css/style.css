@@ -181,6 +181,7 @@ h2 { font-size: clamp(2.4rem, 5.2vw, 3.8rem); margin-bottom: 2rem; }
   display: inline-flex; align-items: center; padding: .7rem 1.3rem; border-radius: 999px;
   font: 400 13px var(--mono); text-decoration: none; border: 1px solid var(--line);
   background: rgba(22,25,33,.6); transition: transform .2s, border-color .2s, box-shadow .2s;
+  color: var(--text); cursor: pointer;   /* also for <button> elements, which do not inherit colour */
 }
 .btn:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 6px 24px var(--accent-glow); }
 .btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
@@ -301,7 +302,7 @@ h2 { font-size: clamp(2.4rem, 5.2vw, 3.8rem); margin-bottom: 2rem; }
 .contact .hero-cta { justify-content: center; margin-top: 2rem; }
 .email { display: inline-block; font: 400 clamp(1.6rem, 4.4vw, 2.6rem) var(--display); color: var(--accent); text-decoration: none; margin-top: 1rem; }
 .email:hover { text-shadow: 0 0 18px var(--accent-glow); }
-.footer { display: flex; justify-content: space-between; padding: 24px 0 40px; border-top: 1px solid var(--line); font: 12px var(--mono); color: var(--muted); }
+.footer { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 24px 0 40px; border-top: 1px solid var(--line); font: 12px var(--mono); color: var(--muted); }
 
 /* ---------- Reveal ---------- */
 .reveal { opacity: 0; transform: translateY(24px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
@@ -419,3 +420,73 @@ h2 { font-size: clamp(2.4rem, 5.2vw, 3.8rem); margin-bottom: 2rem; }
   .live { flex-direction: row; align-items: flex-start; }
   .live-icon { width: 72px; flex: none; }
 }
+
+/* ---------- Arcade: intro gate + game screens ---------- */
+body.gate-active { overflow: hidden; }
+.gate {
+  position: fixed; inset: 0; z-index: 95; overflow-y: auto;
+  display: grid; place-items: center; padding: 24px 16px;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(var(--deep-rgb), .35), transparent 60%),
+    radial-gradient(ellipse at center, #11131a 0%, #07080b 75%);
+  transition: opacity .45s steps(5);
+}
+.gate.closing { opacity: 0; }
+.gate[hidden] { display: none; }
+.gate-inner { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; width: min(760px, 100%); }
+.gate-kicker { margin: 0; font: 400 12px var(--mono); letter-spacing: .1em; color: var(--accent); animation: blink 1.1s steps(1) infinite; }
+.gate h2 {
+  font-size: clamp(2.2rem, 6vw, 3.8rem); margin: 0;
+  background: linear-gradient(95deg, var(--accent) 0%, var(--accent-2) 60%, var(--text) 110%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.gate-goal { margin: 0; color: #c9c7c2; }
+.gate-goal strong { color: #ffcc33; }
+.gate-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 4px; }
+.btn-small { padding: .45rem .95rem; font-size: 10px; color: var(--muted); }
+.btn-small:hover { color: var(--text); }
+.gate-best { margin: 0; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .08em; }
+.gate.playing [data-act="start"] { visibility: hidden; }
+.gate.won .gate-kicker { animation: none; }
+
+.arcade-screen {
+  position: relative; display: grid; place-items: center; padding: 8px; background: #000;
+  /* as wide as possible, but short enough that the whole gate fits on screen */
+  width: clamp(260px, calc((100svh - 330px) * 1.5), min(720px, 100%));
+  --notch: polygon(12px 0, calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 12px, 100% 12px,
+    100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px),
+    calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 12px), 0 calc(100% - 12px),
+    0 12px, 4px 12px, 4px 4px, 12px 4px);
+  clip-path: var(--notch);
+  box-shadow: inset 0 0 0 4px var(--accent-2);
+}
+.arcade-screen canvas { display: block; image-rendering: pixelated; max-width: 100%; }
+.arcade-screen::after {                         /* CRT scanlines over the game */
+  content: ""; position: absolute; inset: 8px; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.18) 2px 3px);
+}
+
+/* keyboard hints on PC, on-screen buttons on touch screens */
+.key-hint { margin: 0; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .06em; }
+kbd {
+  display: inline-block; min-width: 22px; padding: 2px 6px; margin: 0 2px; border-radius: 4px;
+  font: 400 11px var(--mono); color: var(--text); background: #1d212b; border: 1px solid #3a3e49; box-shadow: 0 2px 0 #3a3e49;
+}
+.arcade-pad { display: none; gap: 18px; justify-content: center; }
+.pad-btn {
+  width: 68px; height: 68px; border-radius: 14px; font: 400 22px var(--mono); color: var(--text);
+  background: #1d212b; border: 2px solid var(--accent-2); box-shadow: 0 4px 0 #0b0c10;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer;
+}
+.pad-btn.down { transform: translateY(3px); box-shadow: 0 1px 0 #0b0c10; background: var(--accent-2); color: var(--bg); }
+.pad-action { border-radius: 50%; border-color: var(--accent); }
+@media (hover: none) {
+  .arcade-pad { display: flex; }
+  .key-hint { display: none; }
+}
+
+.replay-intro {
+  font: 400 11px var(--mono); color: var(--accent-2); background: none; border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer;
+}
+.replay-intro:hover { border-color: var(--accent-2); }

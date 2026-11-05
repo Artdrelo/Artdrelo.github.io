@@ -198,6 +198,20 @@ window.SFX = (() => {
       const root = 60 + PENTA[(Math.random() * PENTA.length) | 0];
       chip({ wave: "square", notes: [0, 4, 7, 12, 16, 19, 24].map(n => note(root + n)), step: .028, vol: .028 });
     },
+    // --- minigame sounds ---
+    coin() { if (ready()) chip({ wave: "square", notes: [note(83), note(88)], step: .05, vol: .03 }); },
+    hurt() {
+      if (!ready()) return;
+      chip({ wave: "square", notes: [64, 61, 58, 55].map(note), step: .035, vol: .03 });
+      crunch({ dur: .18, vol: .035 });
+    },
+    gameStart() { if (ready()) chip({ wave: "pulse25", notes: [60, 67, 72, 79].map(note), step: .06, vol: .03 }); },
+    win() {
+      if (!ready()) return;
+      chip({ wave: "square", notes: [72, 76, 79, 84, 79, 84].map(note), step: .08, vol: .035 });
+      chip({ wave: "square", notes: [note(88)], step: .5, vol: .035, delay: .48, vibrato: 6 });
+      chip({ wave: "triangle", notes: [48, 55, 60, 64].map(note), step: .14, vol: .07 });
+    },
     // window open / close: stepped sweeps
     open() { if (ready()) chip({ wave: "pulse25", notes: [60, 64, 67, 71, 74, 79].map(note), step: .02, vol: .03 }); },
     close() { if (ready()) chip({ wave: "pulse25", notes: [79, 74, 71, 67, 64, 60].map(note), step: .018, vol: .025 }); }
@@ -216,8 +230,7 @@ window.SFX = (() => {
   // -------------------------------------------------------------------------
   const MUSIC_MAX = 0.6;                                   // gain at the top level
   const LEVELS_N = 5, DEFAULT_LEVEL = 3;                   // default = 0.36 gain
-  const BPM = 35, STEP = 60 / BPM / 4;                    // one 16th note
-  const SWING = .18;                                       // gentle swing on the off-beat 16ths
+  const LOFI_BPM = 35, LOFI_SWING = .18;                   // lo-fi tempo; gentle swing on off-beat 16ths
   const C = {                                              // chords: bass root + voicing (MIDI)
     D:   { bass: 38, notes: [61, 64, 66, 69] },  // Dmaj9   (D  - C# E F# A)
     Bm:  { bass: 47, notes: [62, 66, 69, 73] },  // Bm9     (B  - D F# A C#)
@@ -257,9 +270,10 @@ window.SFX = (() => {
     if (saved !== null) level = Math.max(0, Math.min(LEVELS_N, parseInt(saved, 10) || 0));
     else if (localStorage.getItem("bgm") === "off") level = 0;     // older on/off setting
   } catch (e) {}
-  const musicGain = () => (level / LEVELS_N) * MUSIC_MAX;
+  const musicGain = () => (level / LEVELS_N) * MUSIC_MAX * (TRACKS[track] ? TRACKS[track].gain : 1);
 
-  let bus = null, playing = false, timer = 0, nextTime = 0, stepIdx = 0, crackleSrc = null;
+  let bus = null, busLP = null, playing = false, timer = 0, nextTime = 0, stepIdx = 0, crackleSrc = null;
+  let track = "lofi";                                      // "lofi" (page) or "game" (minigames)
   let skipSteps = new Set();                               // harp notes left out of the current bar
 
   // each bar (phrase) leaves out 1 random harp note: never the bar's first
@@ -274,7 +288,7 @@ window.SFX = (() => {
     if (bus) return;
     bus = ctx.createGain();
     bus.gain.value = 0;
-    const lp = ctx.createBiquadFilter();                   // warm, slightly muffled "lo-fi" top end
+    const lp = busLP = ctx.createBiquadFilter();           // per-track top end (warm for lo-fi)
     lp.type = "lowpass"; lp.frequency.value = 2800; lp.Q.value = .4;
     bus.connect(lp).connect(ctx.destination);
   }
@@ -335,9 +349,9 @@ window.SFX = (() => {
     crackleSrc.start();
   }
 
-  function scheduleStep(i, t) {
+  function scheduleLofi(i, t, STEP) {
     const b = SONG[Math.floor(i / 16) % SONG.length], s16 = i % 16, chord = b.chord;
-    if (s16 % 2) t += STEP * SWING;                        // swing the off-beats
+    if (s16 % 2) t += STEP * LOFI_SWING;                   // swing the off-beats
     const beat = STEP * 4;
 
     // soft pad: the chord held under everything, entering slowly on beat 1
@@ -375,12 +389,61 @@ window.SFX = (() => {
     }
   }
 
+
+  // -------------------------------------------------------------------------
+  // GAME MUSIC: an original upbeat chiptune loop for the minigames.
+  // 8 bars (C - Am - F - G, twice with a varied lead), 132 BPM: bouncy octave
+  // bass, quiet 16th arpeggio, square-wave lead and a punchy little beat.
+  // -------------------------------------------------------------------------
+  const GAME_BPM = 132;
+  const GC = {
+    C:  { bass: 36, arp: [60, 64, 67] },
+    Am: { bass: 45, arp: [57, 60, 64] },
+    F:  { bass: 41, arp: [57, 60, 65] },
+    G:  { bass: 43, arp: [59, 62, 67] }
+  };
+  const GAME_BARS = ["C", "Am", "F", "G", "C", "Am", "F", "G"];
+  const GAME_LEAD = [                                      // one 8th note per entry (_ = rest)
+    [72, 76, 79, 76, 84, _, 79, _], [81, _, 79, 76, 72, _, 74, 76],
+    [77, _, 76, 74, 72, _, 69, 72], [74, _, _, 71, 67, _, _, _],
+    [72, 76, 79, 84, _, 83, 84, _], [88, _, 86, 84, 81, _, 79, _],
+    [77, 79, 81, _, 84, _, 81, 79], [79, _, 77, _, 74, _, 71, _]
+  ];
+
+  function scheduleGame(i, t, STEP) {
+    const bi = Math.floor(i / 16) % GAME_BARS.length, s16 = i % 16, chord = GC[GAME_BARS[bi]];
+    // arpeggio: every 16th, quiet
+    const a = chord.arp[[0, 1, 2, 1][s16 % 4]] + 12;
+    chip({ wave: "pulse12", notes: [note(a)], step: STEP, gate: .5, vol: .01, at: t, out: bus });
+    if (s16 % 2 === 0) {
+      const e = s16 / 2;
+      // bass: root / octave bounce on 8ths
+      chip({ wave: "triangle", notes: [note(chord.bass + (e % 2 ? 12 : 0))], step: STEP * 2, gate: .7, vol: .09, at: t, out: bus });
+      // lead
+      const m = GAME_LEAD[bi][e];
+      if (m !== _) {
+        const long = GAME_LEAD[bi][e + 1] === _;
+        chip({ wave: "pulse25", notes: [note(m)], step: STEP * (long ? 4 : 2), gate: .85, vol: .022, at: t, out: bus, vibrato: long ? 6 : 0 });
+      }
+    }
+    // drums
+    if (s16 === 0 || s16 === 8 || (s16 === 14 && bi % 2)) kick(t);
+    if (s16 === 4 || s16 === 12) noiseHit({ at: t, dur: .1, vol: .035, freq: 2600, q: .7 });
+    if (s16 % 4 === 2) crunch({ dur: .025, vol: .008, at: t, out: bus });
+  }
+
+  const TRACKS = {
+    lofi: { bpm: LOFI_BPM, steps: 16 * SONG.length, schedule: scheduleLofi, crackle: true, lp: 2800, gain: 1, fadeIn: 3 },
+    game: { bpm: GAME_BPM, steps: 16 * GAME_BARS.length, schedule: scheduleGame, crackle: false, lp: 5200, gain: .85, fadeIn: .6 }
+  };
+
   function tick() {
     // schedule a little ahead so timing stays tight even if the page is busy
+    const tr = TRACKS[track], STEP = 60 / tr.bpm / 4;
     while (nextTime < ctx.currentTime + .25) {
-      scheduleStep(stepIdx, nextTime);
+      tr.schedule(stepIdx, nextTime, STEP);
       nextTime += STEP;
-      stepIdx = (stepIdx + 1) % (16 * SONG.length);
+      stepIdx = (stepIdx + 1) % tr.steps;
     }
   }
 
@@ -390,10 +453,12 @@ window.SFX = (() => {
     playing = true;
     stepIdx = 0;
     nextTime = ctx.currentTime + .1;
+    const tr = TRACKS[track];
+    busLP.frequency.setValueAtTime(tr.lp, ctx.currentTime);
     bus.gain.cancelScheduledValues(ctx.currentTime);
     bus.gain.setValueAtTime(bus.gain.value, ctx.currentTime);
-    bus.gain.linearRampToValueAtTime(musicGain(), ctx.currentTime + 3);   // gentle fade-in
-    startCrackle();
+    bus.gain.linearRampToValueAtTime(musicGain(), ctx.currentTime + tr.fadeIn);   // fade in
+    if (tr.crackle) startCrackle();
     tick();
     timer = setInterval(tick, 50);
   }
@@ -430,6 +495,15 @@ window.SFX = (() => {
       } else { init(); unlock(); setTimeout(tryStart, 50); }
     },
     toggleMute() { this.setLevel(level ? 0 : lastLevel); },
+    get track() { return track; },
+    // switch between "lofi" (page) and "game" (minigames) with a short crossfade
+    setTrack(name) {
+      if (name === track || !TRACKS[name]) return;
+      const wasPlaying = playing;
+      if (wasPlaying) stopMusic(.25);
+      track = name;
+      if (wasPlaying) setTimeout(tryStart, 300); else setTimeout(tryStart, 50);
+    },
     tryStart
   };
 
