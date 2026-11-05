@@ -149,27 +149,6 @@
     // alpha in a few hard steps, like a limited palette
     const stepA = a => Math.ceil(a * 4) / 4;
 
-    // small blocky glow used under the cursor and behind big sparks
-    let glow = null;
-    function buildGlow() {
-      const S = 16;
-      glow = document.createElement("canvas");
-      glow.width = glow.height = S;
-      const g = glow.getContext("2d");
-      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-        const d = Math.hypot(x + .5 - S / 2, y + .5 - S / 2) / (S / 2);
-        if (d >= 1) continue;
-        // ordered (Bayer-style) dither so the falloff reads as pixel art
-        const level = (1 - d) * (1 - d);
-        const threshold = (((x & 1) * 2 + (y & 1) * 3) % 4) / 4;
-        if (level * 1.6 > threshold) {
-          g.fillStyle = `rgba(${theme.c1},${stepA(level)})`;
-          g.fillRect(x, y, 1, 1);
-        }
-      }
-    }
-    buildGlow();
-    document.addEventListener("palettechange", buildGlow);
 
     function resize() {
       W = Math.ceil(innerWidth / PX); H = Math.ceil(innerHeight / PX);
@@ -304,12 +283,6 @@
         drawSpark(s, s.life / s.max);
       }
 
-      // blocky dithered glow under the cursor
-      if (mouse.active) {
-        ctx.globalAlpha = .22;
-        const G = 60 / PX * 2;
-        ctx.drawImage(glow, Math.round(mouse.x - G / 2), Math.round(mouse.y - G / 2), G, G);
-      }
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     }

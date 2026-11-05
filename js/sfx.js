@@ -205,6 +205,13 @@ window.SFX = (() => {
       chip({ wave: "square", notes: [64, 61, 58, 55].map(note), step: .035, vol: .03 });
       crunch({ dur: .18, vol: .035 });
     },
+    // a block on the page unlocking: padlock click + a short chime that climbs with each block
+    unlockBlock(i = 0) {
+      if (!ready()) return;
+      crunch({ dur: .04, vol: .04 });
+      const b = 72 + Math.min(i, 8) * 2;
+      chip({ wave: "square", notes: [b, b + 4, b + 7, b + 12].map(note), step: .04, vol: .028, delay: .03 });
+    },
     unlock() {
       if (!ready()) return;
       chip({ wave: "square", notes: [72, 76, 79, 84, 88].map(note), step: .045, vol: .03 });

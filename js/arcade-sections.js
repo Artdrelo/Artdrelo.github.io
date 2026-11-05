@@ -6,17 +6,38 @@
 // Locked content stays in the HTML, so search engines and screen readers
 // still get it; it's only visually locked.
 //
+// While playing: a progress bar shows the way to the next unlock, toasts
+// announce each unlock, and unlocking the last item pauses the game with a
+// "Back to portfolio / Keep playing" popup. Back on the page, newly unlocked
+// items reveal one by one with an unlock sound.
+//
 // Arcade.lockSection({
 //   id, anchor, items, names, goals,          // storage key, insert-before element, elements in unlock order, labels, scores
-//   title, blurb, keys, touch, bestId, createGame
+//   title, blurb, keys, touch, bestId, createGame, itemWord
 // })
 // ---------------------------------------------------------------------------
 (() => {
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  // a progress bar element (used by the section games and the intro gate)
+  Arcade.progressBar = function () {
+    const el = document.createElement("div");
+    el.className = "arcade-bar";
+    el.innerHTML = `<div class="arcade-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span class="arcade-bar-fill"></span></div><p class="arcade-bar-label"></p>`;
+    el.set = (fraction, label) => {
+      const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
+      el.querySelector(".arcade-bar-fill").style.width = pct + "%";
+      el.querySelector(".arcade-bar-track").setAttribute("aria-valuenow", pct);
+      el.querySelector(".arcade-bar-label").innerHTML = label;
+    };
+    return el;
+  };
+
   Arcade.lockSection = function (cfg) {
     const { id, anchor, items, names, goals, title, blurb, keys, touch = ["left", "right", "action"], bestId, createGame } = cfg;
+    const itemWord = cfg.itemWord || "items";
     let unlocked = Math.max(0, Math.min(goals.length, Arcade.store.get("unlocked:" + id, 0) | 0));
+    let shown = unlocked;                    // how many items are visually unlocked on the page
 
     // --- padlock badges on the items ---
     items.forEach((el, i) => {
@@ -43,13 +64,13 @@
         <canvas width="${Arcade.W}" height="${Arcade.H}"></canvas><span class="arcade-thumb-play" aria-hidden="true">▶</span>
       </button>
       <div class="arcade-panel-body">
-        <p class="arcade-tag">Minigame · unlock ${items.length} ${esc(cfg.itemWord || "items")}</p>
+        <p class="arcade-tag">Minigame · unlock ${items.length} ${esc(itemWord)}</p>
         <h4>${esc(title)}</h4>
         <p class="arcade-blurb">${blurb}</p>
         <p class="arcade-progress"></p>
         <div class="arcade-actions">
           <button class="btn btn-primary" type="button" data-act="play">PLAY</button>
-          <button class="btn btn-small" type="button" data-act="skip">Skip and unlock everything (I don't want to have fun today)</button>
+          <button class="btn btn-small" type="button" data-act="skip">Skip and unlock everything</button>
         </div>
         <p class="arcade-meta"><span class="key-hint">${keys}</span><button class="relock" type="button" data-act="relock">Re-lock</button></p>
       </div>`;
@@ -65,7 +86,7 @@
     document.addEventListener("palettechange", drawThumb);
 
     function apply() {
-      items.forEach((el, i) => el.classList.toggle("locked", i >= unlocked));
+      items.forEach((el, i) => el.classList.toggle("locked", i >= shown));
       const best = Arcade.best(bestId);
       const next = unlocked < goals.length ? `Next goal: <strong>${goals[unlocked]}</strong>` : "<strong>All unlocked!</strong>";
       panel.querySelector(".arcade-progress").innerHTML =
@@ -81,20 +102,45 @@
       apply();
     }
 
+    // reveal items that are unlocked but still look locked, one by one
+    let revealing = false;
+    function revealPending(scroll) {
+      if (revealing || shown >= unlocked) return;
+      revealing = true;
+      const first = items[shown];
+      if (scroll && first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+      const step = () => {
+        if (shown >= unlocked) { revealing = false; apply(); return; }
+        const el = items[shown], i = shown;
+        el.classList.add("unlock-anim");
+        SFX.unlockBlock(i);
+        setTimeout(() => { el.classList.remove("locked"); }, 260);
+        setTimeout(() => { el.classList.remove("unlock-anim"); }, 1000);
+        shown++;
+        setTimeout(step, 380);
+      };
+      setTimeout(step, scroll ? 650 : 100);
+    }
+
     panel.addEventListener("click", e => {
       const act = e.target.closest("[data-act]")?.dataset.act;
       if (act === "play") open();
-      else if (act === "skip") { setUnlocked(goals.length); SFX.win(); }
-      else if (act === "relock") { setUnlocked(0); SFX.close(); }
+      else if (act === "skip") { setUnlocked(goals.length); revealPending(false); }
+      else if (act === "relock") { shown = 0; setUnlocked(0); SFX.close(); }
     });
 
     // --- the play overlay ---
-    let ov = null, session = null, runScore = 0, runOver = true;   // score of the run in progress
+    let ov = null, session = null, runScore = 0, runOver = true, bar = null, finalShown = false;
 
     function goalLine() {
       return unlocked < goals.length
         ? `Next unlock at <strong>${goals[unlocked]}</strong> points · ${unlocked}/${goals.length} unlocked`
         : `Everything's unlocked. Go for a high score!`;
+    }
+    function updateBar() {
+      if (unlocked >= goals.length) { bar.set(1, `All ${esc(itemWord)} unlocked · score <strong>${runScore}</strong>`); return; }
+      const goal = goals[unlocked];
+      bar.set(runScore / goal, `Next: <strong>${esc(names[unlocked])}</strong> · ${runScore} / ${goal}`);
     }
 
     function toast(msg) {
@@ -105,7 +151,28 @@
       setTimeout(() => t.remove(), 2600);
     }
 
+    // shown once per visit when the last item unlocks: the game pauses
+    function finalPopup() {
+      finalShown = true;
+      session.pause(true);
+      const pop = document.createElement("div");
+      pop.className = "arcade-popup";
+      pop.setAttribute("role", "alertdialog");
+      pop.setAttribute("aria-label", "Everything unlocked");
+      pop.innerHTML = `
+        <p class="arcade-popup-title">ALL ${esc(itemWord.toUpperCase())} UNLOCKED!</p>
+        <p>You unlocked everything in this section. Nice run!</p>
+        <div class="arcade-popup-actions">
+          <button class="btn btn-primary" type="button" data-act="exit">Back to portfolio</button>
+          <button class="btn btn-small" type="button" data-act="resume">Keep playing</button>
+        </div>`;
+      ov.querySelector(".arcade-screen").appendChild(pop);
+      SFX.win();
+      setTimeout(() => pop.querySelector('[data-act="exit"]').focus(), 50);
+    }
+
     function open() {
+      finalShown = unlocked >= goals.length;          // already complete: no popup this time
       ov = document.createElement("div");
       ov.className = "gate arcade-overlay";
       ov.setAttribute("role", "dialog");
@@ -125,6 +192,8 @@
           </div>
           <p class="gate-best">BEST: ${Arcade.best(bestId) ?? "--"}</p>
         </div>`;
+      bar = Arcade.progressBar();
+      ov.querySelector(".arcade-screen").after(bar);
       document.body.appendChild(ov);
       document.body.classList.add("gate-active");
       SFX.music.setTrack("game");
@@ -138,7 +207,12 @@
             toast(`UNLOCKED: ${names[unlocked]}`);
             unlocked++; gained = true;
           }
-          if (gained) { setUnlocked(unlocked); SFX.unlock(); ov.querySelector(".gate-goal").innerHTML = goalLine(); }
+          if (gained) {
+            setUnlocked(unlocked); SFX.unlock();
+            ov.querySelector(".gate-goal").innerHTML = goalLine();
+            if (unlocked >= goals.length && !finalShown) setTimeout(() => { if (ov) finalPopup(); }, 450);
+          }
+          updateBar();
         },
         onEnd({ score }) {
           runOver = true;
@@ -150,11 +224,13 @@
         }
       });
       runScore = 0; runOver = false;
+      updateBar();
       session.start();
 
       ov.addEventListener("click", e => {
-        const act = e.target.closest("[data-act]")?.dataset.act;
-        if (act === "again") { e.target.closest("[data-act]").hidden = true; runScore = 0; runOver = false; session.start(); }
+        const btn = e.target.closest("[data-act]"), act = btn?.dataset.act;
+        if (act === "again") { btn.hidden = true; runScore = 0; runOver = false; updateBar(); session.start(); }
+        else if (act === "resume") { btn.closest(".arcade-popup").remove(); session.pause(false); }
         else if (act === "exit") close();
       });
       ov.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
@@ -168,7 +244,11 @@
       SFX.music.setTrack("lofi");
       const o = ov; ov = null;
       o.classList.add("closing");
-      setTimeout(() => { o.remove(); if (!document.querySelector(".gate")) document.body.classList.remove("gate-active"); }, 350);
+      setTimeout(() => {
+        o.remove();
+        if (!document.querySelector(".gate")) document.body.classList.remove("gate-active");
+        revealPending(true);                         // show off what this run unlocked
+      }, 350);
       apply();
       panel.querySelector('[data-act="play"].btn')?.focus({ preventScroll: true });
     }

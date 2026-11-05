@@ -111,7 +111,7 @@ window.IntroGate = (() => {
         api = a; reset();
         for (let i = 0; i < 40; i++) stars.push({ x: Math.random() * api.W, y: Math.random() * 100, p: Math.random() * 6 });
       },
-      start() { reset(); newBest = false; state = "play"; SFX.gameStart(); },
+      start() { reset(); newBest = false; state = "play"; api.score(0); SFX.gameStart(); },
       get state() { return state; },
       get caught() { return caught; },
       get time() { return runTime; },
@@ -144,10 +144,10 @@ window.IntroGate = (() => {
           if (state === "play" && it.y + 8 >= PY && it.y + 8 <= PY + 6 && it.x + 6 > px && it.x + 2 < px + 16) {
             items.splice(i, 1);
             if (it.bomb) {
-              stun = .6; shake = .3; caught = Math.max(0, caught - 1);
+              stun = .6; shake = .3; caught = Math.max(0, caught - 1); api.score(caught);
               burst(it.x + 4, it.y + 4, "#ff7700", 12); SFX.hurt();
             } else {
-              caught++; burst(it.x + 4, it.y + 4, "#ffcc33", 5); burst(it.x + 4, it.y + 4, colors().a, 4); SFX.coin();
+              caught++; api.score(caught); burst(it.x + 4, it.y + 4, "#ffcc33", 5); burst(it.x + 4, it.y + 4, colors().a, 4); SFX.coin();
               if (caught >= GOAL) {
                 state = "won"; winT = 0;
                 newBest = Arcade.submit("intro", Math.round(runTime * 10) / 10, true);
@@ -252,10 +252,17 @@ window.IntroGate = (() => {
       </div>`;
     document.body.appendChild(el);
 
+    // progress bar towards the coin goal
+    const bar = Arcade.progressBar();
+    el.querySelector(".arcade-screen").after(bar);
+    const setBar = n => bar.set(n / GOAL, `Coins <strong>${n}</strong> / ${GOAL}`);
+    setBar(0);
+
     game = createGame();
     session = Arcade.mount(el.querySelector(".arcade-screen"), game, {
       touch: ["left", "right"],
       padEl: el.querySelector(".arcade-pad"),
+      onScore: setBar,
       onEnd: () => {
         el.classList.add("won");
         el.querySelector(".gate-best").textContent = bestText();

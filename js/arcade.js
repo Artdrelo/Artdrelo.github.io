@@ -146,8 +146,16 @@ window.Arcade = (() => {
         playing = session;
         game.start();
       },
+      // freeze the game (the frame stays on screen); input is released while paused
+      pause(on) {
+        paused = !!on;
+        for (const k in keys) keys[k] = false;
+        playing = paused ? null : session;
+        last = performance.now();
+      },
       destroy() { cancelAnimationFrame(raf); ro.disconnect(); if (playing === session) playing = null; }
     };
+    let paused = false;
     game.init(session);
 
     // fixed-timestep loop
@@ -155,7 +163,7 @@ window.Arcade = (() => {
     const DT = 1 / 60;
     (function frame(now) {
       raf = requestAnimationFrame(frame);
-      if (document.hidden) { last = now; return; }
+      if (document.hidden || paused) { last = now; return; }
       acc += Math.min(.1, (now - last) / 1000); last = now;
       while (acc >= DT) {
         game.update(DT, { ...keys, actionPressed });
