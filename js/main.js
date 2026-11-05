@@ -636,6 +636,37 @@
       bestId: "defender",
       createGame: Games.defender
     });
+
+    Arcade.lockSection({
+      id: "live",
+      anchor: $("#live-grid"),
+      items: [...document.querySelectorAll("#live-grid .live")],
+      names: (window.LIVE_GAMES || []).map(g => g.title),
+      goals: [100, 250, 450, 700],
+      itemWord: "games",
+      title: "Lane Racer",
+      blurb: "Weave through traffic as the road speeds up, a nod to the Vial Security driving sim. Grab coins for extra points and unlock the store links.",
+      keys: "<kbd>←</kbd><kbd>→</kbd> change lane",
+      touch: ["left", "right"],
+      bestId: "racer",
+      createGame: Games.racer
+    });
+
+    const skillGroups = [...document.querySelectorAll(".skills .skill-group")];
+    Arcade.lockSection({
+      id: "skills",
+      anchor: $(".skills"),
+      items: skillGroups,
+      names: skillGroups.map(g => g.querySelector("h3").textContent),
+      goals: [150, 400, 750, 1200],
+      itemWord: "skill sets",
+      title: "Skill Breaker",
+      blurb: "Smash the wall brick by brick. Chain hits before the ball comes back for combo points, and unlock each skill set.",
+      keys: "<kbd>←</kbd><kbd>→</kbd> move <kbd>Space</kbd> launch",
+      touch: ["left", "right", "action"],
+      bestId: "breaker",
+      createGame: Games.breaker
+    });
   }
 
   // -------------------------------------------------------------------------

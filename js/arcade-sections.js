@@ -89,7 +89,7 @@
     });
 
     // --- the play overlay ---
-    let ov = null, session = null;
+    let ov = null, session = null, runScore = 0, runOver = true;   // score of the run in progress
 
     function goalLine() {
       return unlocked < goals.length
@@ -132,6 +132,7 @@
       session = Arcade.mount(ov.querySelector(".arcade-screen"), createGame(), {
         touch, padEl: ov.querySelector(".arcade-pad"),
         onScore(score) {
+          runScore = score;
           let gained = false;
           while (unlocked < goals.length && score >= goals[unlocked]) {
             toast(`UNLOCKED: ${names[unlocked]}`);
@@ -140,6 +141,7 @@
           if (gained) { setUnlocked(unlocked); SFX.unlock(); ov.querySelector(".gate-goal").innerHTML = goalLine(); }
         },
         onEnd({ score }) {
+          runOver = true;
           const isBest = Arcade.submit(bestId, score);
           ov.querySelector(".gate-best").textContent = `BEST: ${Arcade.best(bestId)}${isBest && score > 0 ? "  · NEW BEST!" : ""}`;
           const again = ov.querySelector('[data-act="again"]');
@@ -147,11 +149,12 @@
           apply();
         }
       });
+      runScore = 0; runOver = false;
       session.start();
 
       ov.addEventListener("click", e => {
         const act = e.target.closest("[data-act]")?.dataset.act;
-        if (act === "again") { e.target.closest("[data-act]").hidden = true; session.start(); }
+        if (act === "again") { e.target.closest("[data-act]").hidden = true; runScore = 0; runOver = false; session.start(); }
         else if (act === "exit") close();
       });
       ov.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
@@ -160,6 +163,7 @@
 
     function close() {
       if (!ov) return;
+      if (!runOver && runScore > 0) Arcade.submit(bestId, runScore);   // leaving mid-run still counts
       session.destroy(); session = null;
       SFX.music.setTrack("lofi");
       const o = ov; ov = null;
