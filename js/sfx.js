@@ -205,6 +205,13 @@ window.SFX = (() => {
       chip({ wave: "square", notes: [64, 61, 58, 55].map(note), step: .035, vol: .03 });
       crunch({ dur: .18, vol: .035 });
     },
+    unlock() {
+      if (!ready()) return;
+      chip({ wave: "square", notes: [72, 76, 79, 84, 88].map(note), step: .045, vol: .03 });
+      chip({ wave: "pulse12", notes: [note(96)], step: .25, vol: .015, delay: .23, vibrato: 7 });
+    },
+    shoot() { if (ready()) chip({ wave: "pulse25", notes: [88, 84, 79].map(note), step: .018, vol: .016 }); },
+    boom() { if (ready()) crunch({ dur: .14, vol: .03 }); },
     gameStart() { if (ready()) chip({ wave: "pulse25", notes: [60, 67, 72, 79].map(note), step: .06, vol: .03 }); },
     win() {
       if (!ready()) return;

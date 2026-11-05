@@ -28,6 +28,7 @@
 ::selection { background: rgba(var(--deep-rgb), .85); color: #fff; }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* the hidden attribute always wins over display rules */
 html { scroll-behavior: smooth; scroll-padding-top: 80px; }
 body {
   margin: 0;
@@ -490,3 +491,73 @@ kbd {
   border-radius: 999px; padding: 4px 10px; cursor: pointer;
 }
 .replay-intro:hover { border-color: var(--accent-2); }
+
+/* ---------- Section minigames: panel, locked items, toasts ---------- */
+.arcade-panel {
+  display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 24px; align-items: center;
+  margin: 0 0 22px; padding: 18px; border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(var(--deep-rgb), .25), var(--panel) 60%);
+  border: 1px solid var(--line); border-left: 3px solid var(--sec, var(--accent));
+}
+.arcade-panel.flash { animation: panel-flash .9s steps(6); }
+@keyframes panel-flash { 0%, 50% { box-shadow: 0 0 0 3px var(--sec, var(--accent)); } 25%, 75%, 100% { box-shadow: none; } }
+.arcade-thumb {
+  position: relative; padding: 4px; border: 0; cursor: pointer; background: var(--sec, var(--accent));
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+}
+.arcade-thumb canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.arcade-thumb-play {
+  position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; color: #fff;
+  background: rgba(7,8,12,.35); text-shadow: 0 2px 0 #000; transition: background .2s;
+}
+.arcade-thumb:hover .arcade-thumb-play { background: rgba(7,8,12,.1); }
+.arcade-tag { margin: 0 0 .3rem; font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sec, var(--accent)); }
+.arcade-panel h4 { margin: 0; font: 400 2rem/1 var(--display); }
+.arcade-blurb { margin: .5rem 0; color: #bfbdb8; font-size: .95rem; }
+.arcade-progress { margin: 0 0 .9rem; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .04em; }
+.arcade-progress strong { color: var(--text); font-weight: 400; }
+.arcade-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.arcade-actions .btn-small { white-space: normal; text-align: left; }
+.arcade-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: .8rem 0 0; }
+.arcade-meta .key-hint { display: inline; }
+.relock { font: 400 10px var(--mono); color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.relock:hover { color: var(--text); }
+@media (hover: none) { .arcade-meta .key-hint { display: none; } }
+@media (max-width: 680px) { .arcade-panel { grid-template-columns: 1fr; } }
+
+/* locked items: content stays in the page, just visually locked */
+.locked { position: relative; cursor: not-allowed; }
+.locked .card-media img, .locked .card-body, .locked .live-icon, .locked .live-body, .locked > ul, .locked > h3 {
+  filter: blur(5px) grayscale(.7) brightness(.55); user-select: none;
+}
+.lock-badge { display: none; }
+.locked .lock-badge {
+  position: absolute; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
+  font: 400 12px var(--mono); letter-spacing: .08em; color: var(--text); text-shadow: 0 2px 0 #000;
+}
+.locked .lock-badge span { padding: 4px 10px; background: rgba(7,8,12,.8); border: 1px solid var(--sec, var(--accent)); border-radius: 4px; color: var(--sec, var(--accent)); }
+.lock-icon {                                  /* 10x12 pixel padlock drawn with box-shadows */
+  width: 3px; height: 3px; display: block; position: relative; left: -10px;
+  color: var(--sec, var(--accent));
+  box-shadow:
+    6px 0, 9px 0, 12px 0, 15px 0,
+    3px 3px, 18px 3px, 3px 6px, 18px 6px,
+    0 9px, 3px 9px, 6px 9px, 9px 9px, 12px 9px, 15px 9px, 18px 9px, 21px 9px,
+    0 12px, 3px 12px, 6px 12px, 9px 12px, 12px 12px, 15px 12px, 18px 12px, 21px 12px,
+    0 15px, 3px 15px, 6px 15px, 15px 15px, 18px 15px, 21px 15px,
+    0 18px, 3px 18px, 6px 18px, 9px 18px, 12px 18px, 15px 18px, 18px 18px, 21px 18px,
+    0 21px, 3px 21px, 6px 21px, 9px 21px, 12px 21px, 15px 21px, 18px 21px, 21px 21px;
+  margin-bottom: 22px;
+}
+.card.locked:hover { border-color: var(--line); box-shadow: none; }
+.card.locked .play { display: none; }
+
+/* unlock toasts over the game screen */
+.unlock-toasts { position: absolute; top: 14px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.unlock-toast {
+  font: 400 12px var(--mono); letter-spacing: .06em; padding: 6px 12px; color: var(--bg);
+  background: var(--accent); box-shadow: 0 3px 0 rgba(0,0,0,.5);
+  animation: toast 2.6s steps(8) forwards;
+}
+@keyframes toast { 0% { transform: translateY(-8px); opacity: 0; } 10%, 85% { transform: none; opacity: 1; } 100% { opacity: 0; } }

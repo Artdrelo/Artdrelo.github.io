@@ -103,7 +103,7 @@ window.Arcade = (() => {
 
   // --- mounting a game on a screen element --------------------------------------
   // screenEl contains a <canvas>; padEl (optional) receives on-screen buttons
-  function mount(screenEl, game, { touch = ["left", "right"], padEl = null, onEnd = () => {} } = {}) {
+  function mount(screenEl, game, { touch = ["left", "right"], padEl = null, onEnd = () => {}, onScore = () => {} } = {}) {
     const canvas = screenEl.querySelector("canvas");
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
@@ -139,6 +139,7 @@ window.Arcade = (() => {
     const session = {
       W, H, sprite, text, css, store, palette,
       end(result) { playing = null; onEnd(result); },
+      score(n) { onScore(n); },                             // report the running score (live unlocks)
       start() {
         for (const k in keys) keys[k] = false;
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -167,5 +168,18 @@ window.Arcade = (() => {
     return session;
   }
 
-  return { W, H, store, best, submit, sprite, text, css, palette, mount };
+  // render a single frame of a game into a new canvas (used for preview thumbnails)
+  function snapshot(game, steps = 90) {
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    game.init({ W, H, sprite, text, css, store, palette, end() {}, score() {}, start() {}, destroy() {} });
+    const idle = { left: false, right: false, up: false, down: false, action: false, actionPressed: false };
+    for (let i = 0; i < steps; i++) game.update(1 / 60, idle);
+    game.render(ctx);
+    return c;
+  }
+
+  return { W, H, store, best, submit, sprite, text, css, palette, mount, snapshot };
 })();

@@ -617,6 +617,28 @@
   });
 
   // -------------------------------------------------------------------------
+  // Minigame locks (js/arcade-sections.js). Goals are default values to tune
+  // after playtesting: one per item, in the order the items appear.
+  // -------------------------------------------------------------------------
+  if (window.Arcade && Arcade.lockSection) {
+    const moreProjects = PROJECTS.filter(p => !p.featured);
+    Arcade.lockSection({
+      id: "more",
+      anchor: $("#more-grid"),
+      items: [...document.querySelectorAll("#more-grid .card")],
+      names: moreProjects.map(p => p.title),
+      goals: [50, 150, 300, 500, 750, 1050, 1400, 1800],
+      itemWord: "projects",
+      title: "Space Ascent Defender",
+      blurb: "Blast the alien waves before they land. Every score goal unlocks another project, and one great run can unlock them all.",
+      keys: "<kbd>←</kbd><kbd>→</kbd> move <kbd>Space</kbd> fire",
+      touch: ["left", "right", "action"],
+      bestId: "defender",
+      createGame: Games.defender
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Project modal (deep-linkable: #p/<slug>)
   // -------------------------------------------------------------------------
   // Videos render as a poster + play button and only load the player on click:
