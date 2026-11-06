@@ -282,6 +282,14 @@ window.LIVE_GAMES = [
     ]
   },
   {
+    title: "Coin Dozer: Casino",
+    icon: "assets/img/icons/coindozer-casino.jpg",
+    note: "Game Circus · 10M+ downloads",
+    stores: [
+      { store: "googleplay", url: "https://play.google.com/store/apps/details?id=com.gamecircus.CoinDozerJackpot" }
+    ]
+  },
+  {
     title: "Logicubes",
     icon: "assets/img/icons/logicubes.png",
     note: "Indie Level Studio",

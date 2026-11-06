@@ -213,8 +213,8 @@ window.IntroGate = (() => {
           const y = 52 + Math.round(Math.sin(winT * 4) * 2);
           ctx.fillStyle = c.p.shade(.12, 0); ctx.fillRect(20, y - 8, W - 40, 40);
           ctx.fillStyle = c.a; ctx.fillRect(20, y - 8, W - 40, 2); ctx.fillRect(20, y + 30, W - 40, 2);
-          api.text(ctx, "PORTFOLIO UNLOCKED!", W / 2, y, { color: c.a, align: "center", size: 10 });
-          api.text(ctx, `TIME ${runTime.toFixed(1)}s${newBest ? "  NEW BEST!" : ""}`, W / 2, y + 16, { color: "#ffffff", align: "center" });
+          api.text(ctx, "PORTFOLIO UNLOCKED!", W / 2, y - 2, { color: c.a, align: "center", scale: 2, max: 196 });
+          api.text(ctx, `TIME ${runTime.toFixed(1)}s${newBest ? "  NEW BEST!" : ""}`, W / 2, y + 20, { color: "#ffffff", align: "center" });
         }
         ctx.restore();
       }
@@ -243,12 +243,13 @@ window.IntroGate = (() => {
         <p class="gate-goal">Catch <strong>${GOAL} coins</strong> to unlock. Dodge the bombs!</p>
         <div class="arcade-screen">
           <canvas aria-label="Coin Catcher game"></canvas>
+          <div class="arcade-dim" aria-hidden="true"></div>
           <button class="btn btn-primary arcade-big-btn arcade-screen-btn" type="button" data-act="start">▶ START</button>
         </div>
         <div class="arcade-pad" aria-label="Game controls"></div>
         <p class="key-hint"><kbd>←</kbd><kbd>→</kbd> move</p>
         <div class="gate-actions">
-          <button class="btn arcade-big-btn" type="button" data-act="skip">Skip the fun and go to portfolio</button>
+          <button class="btn arcade-big-btn arcade-skip" type="button" data-act="skip">${Arcade.UNLOCK_ICON || ""}Skip the fun and go to portfolio</button>
         </div>
         <p class="gate-best">${bestText()}</p>
       </div>`;

@@ -19,6 +19,9 @@
 (() => {
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  // pixel open padlock used on the "skip and unlock" buttons
+  Arcade.UNLOCK_ICON = `<svg class="ico-unlock" viewBox="0 0 10 12" width="15" height="18" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M5 0h4v1H5zM4 1h1v4H4zM9 1h1v2H9zM0 5h10v7H0z"/><path fill="#07080c" d="M4 7h2v3H4z"/></svg>`;
+
   Arcade.lockSection = function (cfg) {
     const { id, anchor, items, names, goals, title, blurb, keys, touch = ["left", "right", "action"], bestId, createGame } = cfg;
     const itemWord = cfg.itemWord || "items";
@@ -55,6 +58,7 @@
     panel.className = "arcade-panel reveal";
     panel.id = "arcade-" + id;
     panel.innerHTML = `
+      <div class="arcade-head">
       <div class="arcade-thumb">
         <canvas width="${Arcade.W}" height="${Arcade.H}" aria-hidden="true"></canvas>
         <button class="btn btn-primary arcade-big-btn" type="button" data-act="play">▶ PLAY</button>
@@ -62,14 +66,24 @@
       <div class="arcade-panel-body">
         <p class="arcade-tag">Minigame</p>
         <h4>${esc(title)}</h4>
-        <p class="arcade-blurb">${blurb}</p>
         <p class="arcade-progress"></p>
         <div class="arcade-actions">
-          <button class="btn arcade-big-btn" type="button" data-act="skip">Skip and unlock everything</button>
+          <button class="btn arcade-big-btn arcade-skip" type="button" data-act="skip">${Arcade.UNLOCK_ICON}Skip and unlock everything</button>
         </div>
-        <p class="arcade-meta"><span class="key-hint">${keys}</span><button class="relock" type="button" data-act="relock">Re-lock</button></p>
+        <p class="arcade-meta"><button class="relock" type="button" data-act="relock">Re-lock</button></p>
+      </div>
+      </div>
+      <div class="arcade-info">
+        <button class="arcade-info-btn" type="button" aria-label="How to play ${esc(title)}" aria-expanded="false">i</button>
+        <div class="arcade-tip" role="tooltip">
+          <p class="arcade-tip-title">How to play</p>
+          <p>${blurb}</p>
+          <p class="arcade-tip-keys key-hint">${keys}</p>
+          <p class="arcade-tip-keys touch-hint">Use the on-screen buttons.</p>
+        </div>
       </div>`;
     anchor.parentNode.insertBefore(panel, anchor);
+    panel.appendChild(anchor);                       // the unlockable items live inside the minigame block
 
     function drawThumb() {
       const shot = Arcade.snapshot(createGame());
@@ -84,9 +98,7 @@
       items.forEach((el, i) => el.classList.toggle("locked", i >= shown));
       hint.hidden = shown > 0;
       const best = Arcade.best(bestId);
-      const next = unlocked < goals.length ? `Next goal: <strong>${goals[unlocked]}</strong>` : "<strong>All unlocked!</strong>";
-      panel.querySelector(".arcade-progress").innerHTML =
-        `Unlocked <strong>${unlocked}/${goals.length}</strong> · ${next} · Best: <strong>${best ?? "--"}</strong>`;
+      panel.querySelector(".arcade-progress").innerHTML = `Best score: <strong>${best ?? "--"}</strong>`;
       panel.querySelector(".relock").hidden = unlocked === 0;
       panel.querySelector('[data-act="skip"]').hidden = unlocked === goals.length;
     }
@@ -106,15 +118,17 @@
       hint.hidden = true;
       const first = items[shown];
       if (scroll && first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+      // each item is scrolled into view right as it unlocks
       const step = () => {
         if (shown >= unlocked) { revealing = false; apply(); return; }
         const el = items[shown], i = shown;
+        if (scroll) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
         el.classList.add("unlock-anim");
         SFX.unlockBlock(i);
         setTimeout(() => { el.classList.remove("locked"); }, 260);
         setTimeout(() => { el.classList.remove("unlock-anim"); }, 1000);
         shown++;
-        setTimeout(step, 380);
+        setTimeout(step, 450);
       };
       setTimeout(step, scroll ? 650 : 100);
     }
@@ -122,10 +136,20 @@
     panel.addEventListener("click", e => {
       const act = e.target.closest("[data-act]")?.dataset.act;
       if (act === "play") open();
-      else if (act === "skip") { setUnlocked(goals.length); revealPending(false); }
+      else if (act === "skip") { setUnlocked(goals.length); revealPending(true); }
       else if (act === "relock") { shown = 0; setUnlocked(0); SFX.close(); }
     });
     panel.querySelector(".arcade-thumb canvas").addEventListener("click", () => open());
+    const info = panel.querySelector(".arcade-info"), infoBtn = info.querySelector(".arcade-info-btn");
+    infoBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      const open = !info.classList.contains("open");
+      info.classList.toggle("open", open);
+      infoBtn.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", e => {
+      if (!info.contains(e.target)) { info.classList.remove("open"); infoBtn.setAttribute("aria-expanded", "false"); }
+    });
 
     // --- the play overlay ---
     let ov = null, session = null, runScore = 0, runOver = true, bar = null, finalShown = false;
@@ -168,7 +192,8 @@
         </div>`;
       ov.querySelector(".arcade-screen").appendChild(pop);
       SFX.win();
-      setTimeout(() => pop.querySelector('[data-act="exit"]').focus(), 50);
+      pop.tabIndex = -1;
+      setTimeout(() => pop.focus({ preventScroll: true }), 50);   // focus the popup, not a button
     }
 
     function open() {
@@ -187,7 +212,13 @@
           <div class="arcade-screen">
             <canvas aria-label="${esc(title)} game"></canvas>
             <div class="unlock-toasts" aria-live="polite"></div>
-            <button class="btn btn-primary arcade-big-btn arcade-screen-btn" type="button" data-act="again" hidden>▶ PLAY AGAIN</button>
+            <div class="arcade-popup arcade-over" hidden>
+              <p class="arcade-popup-title">GAME OVER</p>
+              <p class="arcade-over-score"></p>
+              <div class="arcade-popup-actions">
+                <button class="btn btn-primary arcade-big-btn" type="button" data-act="again">▶ PLAY AGAIN</button>
+              </div>
+            </div>
           </div>
           <div class="arcade-pad" aria-label="Game controls"></div>
           <p class="key-hint">${keys}</p>
@@ -221,8 +252,10 @@
           runOver = true;
           const isBest = Arcade.submit(bestId, score);
           ov.querySelector(".gate-best").textContent = `BEST: ${Arcade.best(bestId)}${isBest && score > 0 ? "  · NEW BEST!" : ""}`;
-          const again = ov.querySelector('[data-act="again"]');
-          again.hidden = false; again.focus();
+          const over = ov.querySelector(".arcade-over");
+          over.querySelector(".arcade-over-score").innerHTML = `Score <strong>${score}</strong>${isBest && score > 0 ? " · New best!" : ""}`;
+          over.hidden = false;
+          over.tabIndex = -1; over.focus({ preventScroll: true });     // not the button: Space mashing mustn't restart
           apply();
         }
       });
@@ -232,11 +265,16 @@
 
       ov.addEventListener("click", e => {
         const btn = e.target.closest("[data-act]"), act = btn?.dataset.act;
-        if (act === "again") { btn.hidden = true; runScore = 0; runOver = false; updateBar(); session.start(); }
+        if (act === "again") { ov.querySelector(".arcade-over").hidden = true; runScore = 0; runOver = false; updateBar(); session.start(); }
         else if (act === "resume") { btn.closest(".arcade-popup").remove(); session.pause(false); }
         else if (act === "exit") close();
       });
-      ov.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+      ov.addEventListener("keydown", e => {
+        if (e.key === "Escape") close();
+        // Space is the fire button: it must never press a popup / game-over button
+        // (or scroll the overlay). Those need a click, a tap or Enter.
+        if (e.code === "Space" && (e.target.closest(".arcade-popup") || e.target === ov)) e.preventDefault();
+      });
       ov.tabIndex = -1; ov.focus();
     }
 

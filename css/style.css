@@ -76,13 +76,13 @@ body.fx-off #particles, body.fx-off #asteroids, body.fx-off .scanlines { display
   transition: opacity .6s ease, visibility .6s;
 }
 #boot.done { opacity: 0; visibility: hidden; }
-.boot-inner { width: min(560px, 100% - 48px); }
+.boot-inner { width: min(560px, calc(100vw - 40px)); min-width: 0; }   /* viewport-based: never wider than the screen */
 .boot-title { color: var(--text); font-weight: 600; letter-spacing: .25em; font-size: 14px; }
 .boot-sub { margin-bottom: 1.5rem; }
 .boot-lines { list-style: none; padding: 0; margin: 0 0 3rem; min-height: 9em; }
-.boot-lines li { display: flex; gap: .5rem; white-space: nowrap; }
+.boot-lines li { display: flex; gap: .5rem; white-space: nowrap; min-width: 0; }
 .boot-lines li::before { content: ">"; color: var(--accent); }
-.boot-lines .dots { flex: 1; overflow: hidden; color: #3a3e49; }
+.boot-lines .dots { flex: 1; min-width: 0; overflow: hidden; color: #3a3e49; }   /* the dots shrink instead of widening the box */
 .boot-lines .ok { color: var(--accent-2); }
 .boot-bar { height: 3px; background: #1d2029; overflow: hidden; }
 .boot-bar span { display: block; height: 100%; width: 0; background: var(--accent); box-shadow: 0 0 12px var(--accent); transition: width .15s linear; }
@@ -359,7 +359,13 @@ h2 { font-size: clamp(2.4rem, 5.2vw, 3.8rem); margin-bottom: 2rem; }
   body { font-size: 16px; }
   .nav nav { display: none; }
   .palette-toggle { margin-left: auto; }
-  .grid-featured, .grid-more, .skills, .gallery { grid-template-columns: 1fr; }
+  .grid-featured, .gallery { grid-template-columns: 1fr; }
+  .grid-more, .skills { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .grid-more .card-body { padding: 10px 10px 12px; }
+  .grid-more .card-body h3 { font-size: 1.05rem; }
+  .grid-more .card-body p, .grid-more .meta span:not(:first-child) { display: none; }
+  .skill-group { padding: 14px; }
+  .skill-group li { font-size: 9px; padding: 4px 6px; }
   .focus { grid-template-columns: 1fr; gap: .25rem; }
   .highlight { grid-template-columns: 1fr; }
   .modal-panel { padding: 22px 18px; }
@@ -392,7 +398,7 @@ h2 { font-size: clamp(2.4rem, 5.2vw, 3.8rem); margin-bottom: 2rem; }
 .section .sub { color: var(--sec, var(--muted)); }
 
 /* ---------- Live games ---------- */
-.live-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+.live-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; }
 .live {
   position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 16px; padding: 22px;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -420,9 +426,11 @@ h2 { font-size: clamp(2.4rem, 5.2vw, 3.8rem); margin-bottom: 2rem; }
 .store:hover, .store:focus-visible { background: var(--live); color: var(--bg); outline: none; }
 @media (max-width: 960px) { .live-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) {
-  .live-grid { grid-template-columns: 1fr; }
-  .live { flex-direction: row; align-items: flex-start; }
-  .live-icon { width: 72px; flex: none; }
+  .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .live { padding: 14px; gap: 10px; }
+  .live-icon { width: 60px; flex: none; }
+  .live-body h3 { font-size: 1.1rem; }
+  .store { font-size: 9px; padding: 5px 8px; }
 }
 
 /* ---------- Arcade: intro gate + game screens ---------- */
@@ -444,7 +452,7 @@ body.gate-active { overflow: hidden; }
   background: linear-gradient(95deg, var(--accent) 0%, var(--accent-2) 60%, var(--text) 110%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.gate-goal { margin: 0; color: #c9c7c2; }
+.gate-goal { margin: 0; color: #c9c7c2; font: 400 13px/1.5 var(--mono); letter-spacing: .04em; }
 .gate-goal strong { color: #ffcc33; }
 .gate-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 4px; }
 .btn-small { padding: .45rem .95rem; font-size: 10px; color: var(--muted); }
@@ -454,21 +462,27 @@ body.gate-active { overflow: hidden; }
 .gate.won .gate-kicker { animation: none; }
 
 .arcade-screen {
-  position: relative; display: grid; place-items: center; padding: 8px; background: #000;
-  /* as wide as possible, but short enough that the whole gate fits on screen */
-  width: clamp(260px, calc((100svh - 330px) * 1.5), min(720px, 100%));
+  /* the outline is the accent background showing around a black inner layer
+     (::before, same stepped shape, 4px smaller), so it is one continuous line */
+  position: relative; display: grid; place-items: center; padding: 8px; background: var(--accent-2);
+  width: fit-content; max-width: 100%;               /* JS picks a pixel-perfect canvas size */
   --notch: polygon(12px 0, calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 12px, 100% 12px,
     100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px),
     calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 12px), 0 calc(100% - 12px),
     0 12px, 4px 12px, 4px 4px, 12px 4px);
   clip-path: var(--notch);
-  box-shadow: inset 0 0 0 4px var(--accent-2);
 }
-.arcade-screen canvas { display: block; image-rendering: pixelated; max-width: 100%; }
-.arcade-screen::after {                         /* CRT scanlines over the game */
-  content: ""; position: absolute; inset: 8px; pointer-events: none;
-  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.18) 2px 3px);
+.arcade-screen::before { content: ""; position: absolute; inset: 4px; background: #000; clip-path: var(--notch); z-index: 0; }
+.arcade-screen > * { position: relative; z-index: 1; }
+.arcade-screen canvas { display: block; image-rendering: pixelated; }
+/* dimmed, dithered layer behind the START button */
+.arcade-dim {
+  position: absolute !important; inset: 8px; z-index: 2 !important; display: none; pointer-events: none;
+  background:
+    repeating-conic-gradient(rgba(7,8,12,.55) 0 25%, transparent 0 50%) 0 0 / 4px 4px,
+    rgba(7,8,12,.45);
 }
+.gate:not(.playing):not(.won) .arcade-dim { display: block; }
 
 /* keyboard hints on PC, on-screen buttons on touch screens */
 .key-hint { margin: 0; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .06em; }
@@ -497,7 +511,6 @@ kbd {
 
 /* ---------- Section minigames: panel, locked items, toasts ---------- */
 .arcade-panel {
-  display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 24px; align-items: center;
   margin: 0 0 22px; padding: 18px; border-radius: var(--radius);
   background: linear-gradient(135deg, rgba(var(--deep-rgb), .25), var(--panel) 60%);
   border: 1px solid var(--line); border-left: 3px solid var(--sec, var(--accent));
@@ -515,7 +528,9 @@ kbd {
 .arcade-big-btn { min-width: 240px; justify-content: center; padding: .85rem 1.4rem; font-size: 13px; white-space: normal; text-align: center; }
 .arcade-tag { margin: 0 0 .3rem; font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sec, var(--accent)); }
 .arcade-panel h4 { margin: 0; font: 400 2rem/1 var(--display); }
-.arcade-blurb { margin: .5rem 0; color: #bfbdb8; font-size: .95rem; }
+.arcade-head { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 24px; align-items: center; }
+.arcade-panel > .has-lock-hint { margin-top: 40px; }   /* room for the "play to unlock" banner */
+.arcade-blurb { margin: .4rem 0; color: #bfbdb8; font-size: .84rem; line-height: 1.5; }
 .arcade-progress { margin: 0 0 .9rem; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .04em; }
 .arcade-progress strong { color: var(--text); font-weight: 400; }
 .arcade-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -524,7 +539,7 @@ kbd {
 .relock { font: 400 10px var(--mono); color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 .relock:hover { color: var(--text); }
 @media (hover: none) { .arcade-meta .key-hint { display: none; } }
-@media (max-width: 680px) { .arcade-panel { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .arcade-head { grid-template-columns: 1fr; } .arcade-panel { padding: 12px; } }
 
 /* locked items: content stays in the page, just visually locked */
 .locked { position: relative; cursor: not-allowed; }
@@ -564,7 +579,7 @@ kbd {
 @keyframes toast { 0% { transform: translateY(-8px); opacity: 0; } 10%, 85% { transform: none; opacity: 1; } 100% { opacity: 0; } }
 
 /* ---------- Minigame progress bar ---------- */
-.arcade-bar { justify-self: stretch; display: flex; align-items: center; gap: 10px; padding: 2px 4px 8px; }
+.arcade-bar { justify-self: center; width: 72%; display: flex; align-items: center; gap: 10px; padding: 4px 4px 8px; }
 .arcade-bar-tag { flex: none; font: 400 10px var(--mono); letter-spacing: .08em; color: var(--accent); }
 .arcade-bar-track {
   flex: 1; height: 12px; padding: 2px; background: #07080c;
@@ -576,14 +591,15 @@ kbd {
   background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 10px);
 }
 /* big buttons drawn on top of a game screen (START, PLAY AGAIN) */
-.arcade-screen-btn { position: absolute; left: 50%; top: 68%; transform: translate(-50%, -50%); z-index: 2; box-shadow: 0 4px 0 rgba(0,0,0,.6); }
+.arcade-screen > .arcade-screen-btn { position: absolute; left: 50%; top: 72%; transform: translate(-50%, -50%); z-index: 3; box-shadow: 0 4px 0 rgba(0,0,0,.6); }
+.arcade-screen > .arcade-screen-btn[data-act="start"] { top: 50%; }
 .arcade-screen-btn:hover { transform: translate(-50%, calc(-50% - 2px)); }
 
 /* "play to unlock" message across the top of a fully locked section */
 .has-lock-hint { position: relative; }
 .lock-hint {
   position: absolute; z-index: 4; left: 50%; top: 0; transform: translate(-50%, -50%);
-  display: flex; align-items: center; gap: 12px; max-width: calc(100% - 24px); padding: 10px 18px;
+  display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100% - 24px); padding: 10px 18px;
   font: 400 12px var(--mono); letter-spacing: .05em; color: var(--text); text-align: left; cursor: pointer;
   background: #07080c; border: 2px solid var(--sec, var(--accent)); box-shadow: 0 4px 0 rgba(0,0,0,.6), 0 0 24px rgba(0,0,0,.6);
 }
@@ -597,8 +613,8 @@ kbd {
   gap: 10px; padding: 16px; text-align: center; background: rgba(7,8,12,.86);
   animation: pop .35s steps(4);
 }
-.arcade-popup-title { margin: 0; font: 400 clamp(1.4rem, 4vw, 2.2rem)/1 var(--display); color: var(--accent); text-shadow: 0 3px 0 #000; }
-.arcade-popup p { margin: 0; color: #c9c7c2; }
+.arcade-popup-title { margin: 0; font: 700 16px/1.3 var(--mono); letter-spacing: .06em; color: var(--accent); text-shadow: 0 2px 0 #000; }
+.arcade-popup p { margin: 0; color: #c9c7c2; font: 400 11px/1.6 var(--mono); letter-spacing: .04em; }
 .arcade-popup-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 6px; }
 
 /* ---------- Block unlock animation on the page ---------- */
@@ -622,4 +638,46 @@ kbd {
   a, button, [role=slider], .card, .live-icon, .avatar-frame, .arcade-thumb canvas, .bgm-bars, .relock, .lock-hint, .locked {
     cursor: var(--cursor-lock, pointer) !important;
   }
+}
+
+/* ---------- Skip / unlock buttons: coloured so they read as a real choice ---------- */
+.arcade-skip { color: var(--sec, var(--accent-2)); border-color: var(--sec, var(--accent-2)); gap: 10px; }
+.arcade-skip:hover { color: var(--text); border-color: var(--text); }
+.ico-unlock { flex: none; image-rendering: pixelated; }
+@media (max-width: 680px) { .lock-badge span { font-size: 9px; } .locked .lock-badge { gap: 4px; } .lock-hint { font-size: 10px; } }
+
+/* ---------- Minigame info button + tooltip (top-right of each block) ---------- */
+.arcade-panel { position: relative; }
+.arcade-info { position: absolute; top: 12px; right: 12px; z-index: 6; }
+.arcade-info-btn {
+  width: 30px; height: 30px; display: grid; place-items: center; padding: 0;
+  font: 700 14px/1 var(--mono); color: var(--sec, var(--accent)); background: #07080c;
+  border: 2px solid var(--sec, var(--accent)); border-radius: 50%; cursor: pointer;
+}
+.arcade-tip {
+  position: absolute; top: calc(100% + 8px); right: 0; width: min(280px, 80vw);
+  padding: 12px 14px; background: #07080c; border: 2px solid var(--sec, var(--accent));
+  box-shadow: 0 4px 0 rgba(0,0,0,.6); text-align: left;
+  visibility: hidden; opacity: 0; transform: translateY(-4px); transition: opacity .15s steps(3), transform .15s steps(3), visibility 0s .15s;
+}
+.arcade-tip p { margin: 0 0 .5rem; font-size: .85rem; line-height: 1.5; color: #c9c7c2; }
+.arcade-tip p:last-child { margin-bottom: 0; }
+.arcade-tip-title { font: 400 11px var(--mono) !important; letter-spacing: .08em; text-transform: uppercase; color: var(--sec, var(--accent)) !important; }
+.arcade-tip-keys { font: 400 11px var(--mono) !important; }
+.arcade-tip .touch-hint { display: none; }
+.arcade-info.open .arcade-tip,
+.arcade-info:focus-within .arcade-tip { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
+@media (hover: hover) { .arcade-info:hover .arcade-tip { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; } }
+@media (hover: none) { .arcade-tip .key-hint { display: none; } .arcade-tip .touch-hint { display: block; } }
+
+/* game over panel: result on top, PLAY AGAIN right below it */
+.arcade-over-score { font: 400 12px var(--mono) !important; letter-spacing: .06em; color: var(--text) !important; }
+.arcade-over-score strong { color: var(--accent); font-weight: 400; }
+.arcade-panel-body { padding-right: 36px; }   /* room for the info button */
+
+/* loading screen on thin phones: slightly smaller text so every line fits */
+@media (max-width: 420px) {
+  #boot { font-size: 10px; }
+  .boot-title { font-size: 12px; letter-spacing: .15em; }
+  .boot-foot { gap: 12px; }
 }

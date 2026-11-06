@@ -146,12 +146,12 @@ Games.breaker = function () {
       const banner = (a, b) => {
         ctx.fillStyle = p.shade(.12, 0); ctx.fillRect(30, 70, 180, 40);
         ctx.fillStyle = p.main; ctx.fillRect(30, 70, 180, 2); ctx.fillRect(30, 108, 180, 2);
-        api.text(ctx, a, 120, 78, { color: p.main, align: "center", size: 10 });
-        if (b) api.text(ctx, b, 120, 94, { color: "#ffffff", align: "center" });
+        api.text(ctx, a, 120, 74, { color: p.main, align: "center", scale: 2, max: 172 });
+        if (b) api.text(ctx, b, 120, 96, { color: "#ffffff", align: "center" });
       };
       if (state === "intro") banner(`WALL ${level}`, "GET READY!");
       if (state === "clear") banner("WALL CLEAR!", "BONUS 200");
-      if (state === "over") banner("GAME OVER", `SCORE ${score}`);
+      // game over: shown by the overlay's panel (result + PLAY AGAIN), not drawn here
     }
   };
 };

@@ -1,4 +1,4 @@
-﻿// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // SPACE DEFENDER: a fixed shooter (a nod to the Space Ascent project).
 // Waves of pixel aliens march side to side and step down; shoot them before
 // they land. â† â†’ move, Space fires (hold to auto-fire). 3 lives.
@@ -190,12 +190,12 @@ Games.defender = function () {
       const banner = (a, b) => {
         ctx.fillStyle = p.shade(.12, 0); ctx.fillRect(30, 58, 180, 40);
         ctx.fillStyle = p.main; ctx.fillRect(30, 58, 180, 2); ctx.fillRect(30, 96, 180, 2);
-        api.text(ctx, a, 120, 66, { color: p.main, align: "center", size: 10 });
-        if (b) api.text(ctx, b, 120, 82, { color: "#ffffff", align: "center" });
+        api.text(ctx, a, 120, 62, { color: p.main, align: "center", scale: 2, max: 172 });
+        if (b) api.text(ctx, b, 120, 84, { color: "#ffffff", align: "center" });
       };
       if (state === "intro") banner(`WAVE ${wave}`, "GET READY!");
       if (state === "wave") banner("WAVE CLEAR!", `BONUS ${50 * (wave - 1)}`);
-      if (state === "over") banner("GAME OVER", `SCORE ${score}`);
+      // game over: shown by the overlay's panel (result + PLAY AGAIN), not drawn here
     }
   };
 };

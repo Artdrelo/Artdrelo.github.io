@@ -54,8 +54,13 @@ window.Arcade = (() => {
   // look blurry once the screen is scaled up. So each label is drawn once,
   // snapped to fully on/off pixels, cached, and then stamped like a sprite.
   const textCache = new Map();
-  function textSprite(str, color, size) {
-    const key = str + "|" + color + "|" + size;
+  // Silkscreen is an 8px bitmap-style font: drawn at exactly 8px every letter
+  // lands on whole pixels (other sizes distort shapes, e.g. C looking like O),
+  // so text is always rendered at 8px and bigger titles are scaled by whole pixels.
+  const FONT_PX = 8;
+  function textSprite(str, color) {
+    const size = FONT_PX;
+    const key = str + "|" + color;
     let c = textCache.get(key);
     if (c) return c;
     const m = document.createElement("canvas").getContext("2d");
@@ -73,13 +78,18 @@ window.Arcade = (() => {
     textCache.set(key, c);
     return c;
   }
-  function text(ctx, str, x, y, { color = "#fff", align = "left", size = 8, shadow = "#000" } = {}) {
+  // scale: whole-pixel size multiplier (2 = big title); max: shrink back to 1x if wider
+  function text(ctx, str, x, y, { color = "#fff", align = "left", scale = 1, max = Infinity, shadow = "#000" } = {}) {
     str = String(str);
-    const s = textSprite(str, color, size);
-    const w = s.width - 2;
+    const s = textSprite(str, color);
+    let k = Math.max(1, Math.round(scale));
+    while (k > 1 && (s.width - 2) * k > max) k--;
+    const w = (s.width - 2) * k, h = s.height * k;
     const left = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
-    if (shadow) ctx.drawImage(textSprite(str, shadow, size), left + 1, Math.round(y));
-    ctx.drawImage(s, left, Math.round(y) - 1);
+    const prev = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+    if (shadow) ctx.drawImage(textSprite(str, shadow), left + k, Math.round(y), s.width * k, h);
+    ctx.drawImage(s, left, Math.round(y) - k, s.width * k, h);
+    ctx.imageSmoothingEnabled = prev;
   }
   // fonts can finish loading after the first frames: drop text drawn with the fallback font
   if (document.fonts) document.fonts.ready.then(() => textCache.clear());
@@ -136,17 +146,23 @@ window.Arcade = (() => {
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
 
-    // whole-number scaling is crispest; use it when it fills the frame well,
-    // otherwise fill the frame exactly (no black bars)
+    // Pixel-perfect scaling: every game pixel must cover the same whole number
+    // of device pixels, otherwise some columns end up wider than others and
+    // shapes (and letters) distort. The frame then shrinks to fit the canvas.
+    // Available space: up to 720px wide, the container's width, and short enough
+    // that the whole overlay fits on screen.
     function fit() {
-      const cs = getComputedStyle(screenEl);
-      const avail = screenEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      const whole = Math.floor(avail / W);
-      const s = whole >= 1 && (whole * W) / avail >= .92 ? whole : avail / W;
+      const dpr = window.devicePixelRatio || 1;
+      const host = screenEl.parentElement;
+      const pad = 24;                                        // frame border + padding on both sides
+      const avail = Math.min(720, host.clientWidth, Math.max(260, (innerHeight - 330) * 1.5)) - pad;
+      let s = Math.floor((avail * dpr) / W) / dpr;
+      if (s <= 0) s = 1 / dpr;
       canvas.style.width = W * s + "px";
       canvas.style.height = H * s + "px";
     }
-    const ro = new ResizeObserver(fit); ro.observe(screenEl); fit();
+    const ro = new ResizeObserver(fit); ro.observe(screenEl.parentElement); fit();
+    addEventListener("resize", fit);
 
     // on-screen buttons (only shown on touch screens via CSS)
     if (padEl) {
@@ -180,7 +196,7 @@ window.Arcade = (() => {
         playing = paused ? null : session;
         last = performance.now();
       },
-      destroy() { cancelAnimationFrame(raf); ro.disconnect(); if (playing === session) playing = null; }
+      destroy() { cancelAnimationFrame(raf); ro.disconnect(); removeEventListener("resize", fit); if (playing === session) playing = null; }
     };
     let paused = false;
     game.init(session);

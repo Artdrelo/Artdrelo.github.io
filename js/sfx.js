@@ -297,6 +297,7 @@ window.SFX = (() => {
 
   let bus = null, busLP = null, playing = false, timer = 0, nextTime = 0, stepIdx = 0, crackleSrc = null;
   let track = "lofi";                                      // "lofi" (page) or "game" (minigames)
+  let suspended = false;                                   // paused while a video plays
   let skipSteps = new Set();                               // harp notes left out of the current bar
 
   // each bar (phrase) leaves out 1 random harp note: never the bar's first
@@ -476,7 +477,7 @@ window.SFX = (() => {
   }
 
   function startMusic() {
-    if (playing || level === 0 || !ctx || ctx.state !== "running" || document.hidden) return;
+    if (playing || suspended || level === 0 || !ctx || ctx.state !== "running" || document.hidden) return;
     makeBus();
     playing = true;
     stepIdx = 0;
@@ -533,6 +534,11 @@ window.SFX = (() => {
       if (wasPlaying) stopMusic(.25);
       track = name;
       if (wasPlaying) setTimeout(tryStart, 300); else setTimeout(tryStart, 50);
+    },
+    // pause the music while something else plays sound (e.g. a project video)
+    suspend(on) {
+      suspended = !!on;
+      if (suspended) stopMusic(.3); else setTimeout(tryStart, 50);
     },
     tryStart
   };

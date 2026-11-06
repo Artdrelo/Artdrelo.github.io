@@ -165,6 +165,7 @@
         while (rocks.length < want) { const r = {}; spawnRock(r, false); rocks.push(r); }
         rocks.length = want;
       }
+      measureHero();
       const target = Math.round((innerWidth * innerHeight) / 24000);
       while (embers.length < target) embers.push(makeEmber(true));
       embers.length = target;
@@ -214,6 +215,12 @@
     }, { passive: true });
     document.addEventListener("pointerleave", () => { mouse.active = false; mouse.px = mouse.py = -999; });
 
+    // the hero's water stays clear of stars and asteroids: track where it ends
+    const heroEl = $(".hero");
+    let heroBottom = 0;                                   // in game pixels, from the top of the viewport
+    const measureHero = () => { heroBottom = heroEl ? Math.max(0, heroEl.getBoundingClientRect().bottom / PX) : 0; };
+    addEventListener("scroll", measureHero, { passive: true });
+
     // --- background asteroids (on their own canvas, behind the page content) ---
     const acv = $("#asteroids"), actx = acv ? acv.getContext("2d") : null;
     const rocks = [], debris = [], lasers = [];
@@ -254,6 +261,7 @@
     hitAsteroid = (cx, cy) => {
       if (!fxOn) return false;
       const x = cx / PX, y = cy / PX;
+      if (y < heroBottom) return false;                   // over the water: clicks make ripples instead
       const rock = rocks.find(r => r.alive && Math.hypot(x - r.x, y - r.y) < r.r + 3);
       if (!rock) return false;
       const cols = [[160, 165, 178], [110, 114, 128], theme.c1, theme.c1light];
@@ -268,8 +276,13 @@
       rock.alive = false; rock.wait = 200 + Math.random() * 300;             // a new one drifts in later
       return true;
     };
-    // laser streak from the bottom of the screen (your ship) to the click
-    shootLaser = (cx, cy) => { if (fxOn) lasers.push({ x: cx / PX, y: cy / PX, life: 7 }); };
+    // laser bolt: a short streak that travels from the bottom of the screen
+    // (your ship) to the click; onHit runs when it arrives
+    const BOLT_FRAMES = 8, BOLT_LEN = 24;                  // bolt length in game pixels
+    shootLaser = (cx, cy, onHit) => {
+      if (!fxOn) { onHit && onHit(); return; }
+      lasers.push({ x: cx / PX, y: cy / PX, t: 0, onHit, done: false });
+    };
 
     // exposed so the click handler can trigger a burst
     burst = (cx, cy) => {
@@ -324,6 +337,7 @@
           actx.drawImage(r.spr, Math.round(r.x - r.r - 1), Math.round(r.y - r.r - 1));
         }
         actx.globalAlpha = 1;
+        if (heroBottom > 0) actx.clearRect(0, 0, W, Math.ceil(heroBottom));
       }
 
       ctx.clearRect(0, 0, W, H);
@@ -340,43 +354,66 @@
 
       ctx.globalCompositeOperation = "lighter";
 
-      // laser streaks: a pixel line from the bottom centre to the target
+      // laser bolts: a short bright streak flying from the bottom centre to the target
       for (let i = lasers.length - 1; i >= 0; i--) {
         const l = lasers[i];
-        if (--l.life <= 0) { lasers.splice(i, 1); continue; }
-        const x0 = W / 2, y0 = H, steps = Math.max(Math.abs(l.x - x0), Math.abs(l.y - y0));
-        const k = l.life / 7, from = Math.max(0, 1 - k * 1.4);       // the beam shrinks toward the target
-        ctx.globalAlpha = stepA(k);
-        ctx.fillStyle = `rgb(${theme.c1})`;
-        for (let s = Math.floor(steps * from); s <= steps; s += 1) {
-          const t = s / steps;
-          ctx.fillRect(Math.round(x0 + (l.x - x0) * t), Math.round(y0 + (l.y - y0) * t), 1, 1);
+        l.t++;
+        const x0 = W / 2, y0 = H, dist = Math.hypot(l.x - x0, l.y - y0) || 1;
+        const head = Math.min(1, l.t / BOLT_FRAMES);
+        if (head >= 1 && !l.done) { l.done = true; l.onHit && l.onHit(); }
+        if (l.t > BOLT_FRAMES + 3) { lasers.splice(i, 1); continue; }
+        if (!l.done) {
+          const tail = Math.max(0, head - BOLT_LEN / dist);
+          const n = Math.max(1, Math.ceil((head - tail) * dist));
+          const glow = `rgb(${theme.c1})`, light = `rgb(${theme.c1light})`;
+          for (let s = 0; s <= n; s++) {
+            const t = tail + (head - tail) * (s / n), k = s / n;   // k: 0 at the tail, 1 at the tip
+            const x = Math.round(x0 + (l.x - x0) * t), y = Math.round(y0 + (l.y - y0) * t);
+            // light emission: a soft halo that is wider and brighter toward the tip
+            ctx.fillStyle = glow;
+            ctx.globalAlpha = .10 + .14 * k; ctx.fillRect(x - 1, y - 1, 3, 3);
+            if (k > .6) { ctx.globalAlpha = .08; ctx.fillRect(x - 2, y - 2, 5, 5); }
+            // the beam itself: white-hot tip, bright core fading along the tail
+            ctx.globalAlpha = .45 + .55 * k;
+            ctx.fillStyle = k > .88 ? "#fff" : light;
+            ctx.fillRect(x, y, 1, 1);
+          }
+        } else {
+          // impact flash: a glowing burst for a few frames after it lands
+          const f = 1 - (l.t - BOLT_FRAMES) / 4, x = Math.round(l.x), y = Math.round(l.y);
+          ctx.fillStyle = `rgb(${theme.c1})`;
+          ctx.globalAlpha = .25 * f; ctx.fillRect(x - 3, y - 3, 7, 7);
+          ctx.globalAlpha = .45 * f; ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
+          ctx.globalAlpha = 1; ctx.fillStyle = "#fff";
+          ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3);
         }
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y), 3, 1); ctx.fillRect(Math.round(l.x), Math.round(l.y) - 1, 1, 3);
       }
 
       // ambient embers: drifting pixels pushed away by the cursor
       const R = 140 / PX;
       for (const p of embers) {
         p.tw += .03;
-        if (mouse.active) {
+        const overWater = p.y < heroBottom;
+        if (mouse.active && !overWater) {
           const dx = p.x - mouse.x, dy = p.y - mouse.y;
           const d2 = dx * dx + dy * dy;
           if (d2 < R * R) {
             const d = Math.sqrt(d2) || 1, f = (1 - d / R) * .2;
             p.vx += (dx / d) * f; p.vy += (dy / d) * f;
-            // faint pixel line to the cursor
-            ctx.globalAlpha = stepA((1 - d / R) * .25);
-            ctx.strokeStyle = `rgb(${theme[p.c]})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(Math.round(p.x) + .5, Math.round(p.y) + .5);
-            ctx.lineTo(Math.round(mouse.x) + .5, Math.round(mouse.y) + .5); ctx.stroke();
+            // faint dotted line to the cursor: greyed out and dim, so it never
+            // looks like the solid laser shot
+            ctx.globalAlpha = stepA((1 - d / R) * .14);
+            const c = theme[p.c], g = 130;
+            ctx.fillStyle = `rgb(${c.map(v => Math.round(v * .35 + g * .65)).join(",")})`;
+            const x0 = Math.round(p.x), y0 = Math.round(p.y), x1 = Math.round(mouse.x), y1 = Math.round(mouse.y);
+            const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+            for (let s = 0; s <= n; s += 2) ctx.fillRect(Math.round(x0 + (x1 - x0) * s / n), Math.round(y0 + (y1 - y0) * s / n), 1, 1);
           }
         }
         p.vx *= .96; p.vy = p.vy * .96 - .004;
         p.x += p.vx; p.y += p.vy;
         if (p.y < -4 || p.x < -8 || p.x > W + 8) Object.assign(p, makeEmber(false));
+        if (overWater) continue;
         ctx.globalAlpha = stepA(p.a * (.6 + .4 * Math.sin(p.tw)));
         ctx.fillStyle = `rgb(${theme[p.c]})`;
         ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
@@ -620,11 +657,13 @@
   function fire(t, x, y) {
     if (t.closest(INTERACTIVE)) { SFX.click(); return; }
     if (!fxOn || t.closest("iframe, .modal-panel, .modal-backdrop, input, textarea, .gate")) return;
-    shootLaser(x, y);
-    if (hitAsteroid(x, y)) { SFX.asteroid(); return; }
-    burst(x, y);
-    if (isOverWater(x, y)) { dropAt(x, y); SFX.water(); }
-    else SFX.sparkle();
+    // the effects happen when the bolt arrives
+    shootLaser(x, y, () => {
+      if (hitAsteroid(x, y)) { SFX.asteroid(); return; }
+      burst(x, y);
+      if (isOverWater(x, y)) { dropAt(x, y); SFX.water(); }
+      else SFX.sparkle();
+    });
   }
   // Mouse: react on press. Touch: only on a real tap (finger lifted quickly
   // without moving), so starting a scroll never fires effects or sounds.
@@ -757,7 +796,7 @@
       anchor: $("#live-grid"),
       items: [...document.querySelectorAll("#live-grid .live")],
       names: (window.LIVE_GAMES || []).map(g => g.title),
-      goals: [100, 250, 450, 700],
+      goals: [100, 200, 400, 700, 1000],
       itemWord: "games",
       title: "Lane Racer",
       blurb: "Switch lanes to dodge traffic and grab coins as the road speeds up.",
@@ -825,6 +864,7 @@
     wrap.className = "video";
     wrap.innerHTML = `<iframe src="${f.dataset.src}" title="Project video" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
     f.replaceWith(wrap);
+    SFX.music.suspend(true);                 // no background music over a playing video
   });
 
   const modal = $("#modal"), body = $("#modal-body");
@@ -861,6 +901,7 @@
     modal.hidden = true;
     modalOpen = false;
     body.innerHTML = ""; // stops any playing video
+    SFX.music.suspend(false);                // music comes back once the video is gone
     document.body.style.overflow = "";
     if (location.hash.startsWith("#p/")) history.replaceState(null, "", location.pathname + location.search);
     lastFocus?.focus?.();
