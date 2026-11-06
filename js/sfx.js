@@ -205,6 +205,13 @@ window.SFX = (() => {
       chip({ wave: "square", notes: [64, 61, 58, 55].map(note), step: .035, vol: .03 });
       crunch({ dur: .18, vol: .035 });
     },
+    // background asteroid shot: deep crunchy boom with a falling tone
+    asteroid() {
+      if (!ready()) return;
+      crunch({ dur: .3, vol: .05 });
+      chip({ wave: "triangle", notes: [52, 47, 43, 40].map(note), step: .05, vol: .09 });
+      chip({ wave: "square", notes: [64, 59, 55].map(note), step: .035, vol: .015 });
+    },
     // a block on the page unlocking: padlock click + a short chime that climbs with each block
     unlockBlock(i = 0) {
       if (!ready()) return;
@@ -300,13 +307,18 @@ window.SFX = (() => {
     return new Set(playable.length ? [playable[(Math.random() * playable.length) | 0]] : []);
   }
 
+  // Every time music starts it gets a brand-new bus. Long-ringing notes from the
+  // previous track stay on the old bus, which fades out and is then disconnected,
+  // so they can never bleed into the next track.
   function makeBus() {
-    if (bus) return;
+    if (!busLP) {
+      busLP = ctx.createBiquadFilter();                    // per-track top end (warm for lo-fi)
+      busLP.type = "lowpass"; busLP.frequency.value = 2800; busLP.Q.value = .4;
+      busLP.connect(ctx.destination);
+    }
     bus = ctx.createGain();
     bus.gain.value = 0;
-    const lp = busLP = ctx.createBiquadFilter();           // per-track top end (warm for lo-fi)
-    lp.type = "lowpass"; lp.frequency.value = 2800; lp.Q.value = .4;
-    bus.connect(lp).connect(ctx.destination);
+    bus.connect(busLP);
   }
 
   // a soft keys/pad note: slow attack, long release, random detune (tape wobble)
@@ -482,9 +494,11 @@ window.SFX = (() => {
     if (!playing) return;
     playing = false;
     clearInterval(timer);
-    bus.gain.cancelScheduledValues(ctx.currentTime);
-    bus.gain.setValueAtTime(bus.gain.value, ctx.currentTime);
-    bus.gain.linearRampToValueAtTime(0, ctx.currentTime + fade);
+    const old = bus;
+    old.gain.cancelScheduledValues(ctx.currentTime);
+    old.gain.setValueAtTime(old.gain.value, ctx.currentTime);
+    old.gain.linearRampToValueAtTime(0, ctx.currentTime + fade);
+    setTimeout(() => old.disconnect(), (fade + .1) * 1000);   // cut every tail still ringing on it
     if (crackleSrc) { crackleSrc.stop(ctx.currentTime + fade + .05); crackleSrc = null; }
   }
 

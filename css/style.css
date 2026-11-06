@@ -63,7 +63,10 @@ em { font-style: normal; color: var(--accent); }
   position: fixed; inset: 0; pointer-events: none; z-index: 51; opacity: .35;
   background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.25) 2px 3px);
 }
-body.fx-off #particles, body.fx-off .scanlines { display: none; }
+#asteroids {                               /* drifting background rocks, behind the page content */
+  position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; image-rendering: pixelated;
+}
+body.fx-off #particles, body.fx-off #asteroids, body.fx-off .scanlines { display: none; }
 
 /* ---------- Boot ---------- */
 #boot {
@@ -157,7 +160,7 @@ body.fx-off #particles, body.fx-off .scanlines { display: none; }
     0 12px, 4px 12px, 4px 4px, 12px 4px);
 }
 .avatar-frame {
-  position: relative; aspect-ratio: 1; padding: 6px; cursor: crosshair;
+  position: relative; aspect-ratio: 1; padding: 6px;
   background: linear-gradient(135deg, var(--c1), var(--accent-2) 55%, var(--accent-4));
   clip-path: var(--notch);
   transition: transform .25s steps(3);
@@ -502,22 +505,20 @@ kbd {
 .arcade-panel.flash { animation: panel-flash .9s steps(6); }
 @keyframes panel-flash { 0%, 50% { box-shadow: 0 0 0 3px var(--sec, var(--accent)); } 25%, 75%, 100% { box-shadow: none; } }
 .arcade-thumb {
-  position: relative; padding: 4px; border: 0; cursor: pointer; background: var(--sec, var(--accent));
+  position: relative; padding: 4px; background: var(--sec, var(--accent));
   clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
 }
-.arcade-thumb canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
-.arcade-thumb-play {
-  position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; color: #fff;
-  background: rgba(7,8,12,.35); text-shadow: 0 2px 0 #000; transition: background .2s;
-}
-.arcade-thumb:hover .arcade-thumb-play { background: rgba(7,8,12,.1); }
+.arcade-thumb canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; filter: brightness(.6); cursor: pointer; }
+.arcade-thumb .arcade-big-btn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 0 rgba(0,0,0,.6); }
+.arcade-thumb .arcade-big-btn:hover { transform: translate(-50%, calc(-50% - 2px)); }
+/* the play and skip buttons share one size so both choices read equally clearly */
+.arcade-big-btn { min-width: 240px; justify-content: center; padding: .85rem 1.4rem; font-size: 13px; white-space: normal; text-align: center; }
 .arcade-tag { margin: 0 0 .3rem; font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sec, var(--accent)); }
 .arcade-panel h4 { margin: 0; font: 400 2rem/1 var(--display); }
 .arcade-blurb { margin: .5rem 0; color: #bfbdb8; font-size: .95rem; }
 .arcade-progress { margin: 0 0 .9rem; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .04em; }
 .arcade-progress strong { color: var(--text); font-weight: 400; }
 .arcade-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.arcade-actions .btn-small { white-space: normal; text-align: left; }
 .arcade-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: .8rem 0 0; }
 .arcade-meta .key-hint { display: inline; }
 .relock { font: 400 10px var(--mono); color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
@@ -554,7 +555,7 @@ kbd {
 .card.locked .play { display: none; }
 
 /* unlock toasts over the game screen */
-.unlock-toasts { position: absolute; top: 14px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.unlock-toasts { position: absolute; top: 40px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 .unlock-toast {
   font: 400 12px var(--mono); letter-spacing: .06em; padding: 6px 12px; color: var(--bg);
   background: var(--accent); box-shadow: 0 3px 0 rgba(0,0,0,.5);
@@ -563,18 +564,32 @@ kbd {
 @keyframes toast { 0% { transform: translateY(-8px); opacity: 0; } 10%, 85% { transform: none; opacity: 1; } 100% { opacity: 0; } }
 
 /* ---------- Minigame progress bar ---------- */
-.arcade-bar { width: min(720px, 100%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.arcade-bar { justify-self: stretch; display: flex; align-items: center; gap: 10px; padding: 2px 4px 8px; }
+.arcade-bar-tag { flex: none; font: 400 10px var(--mono); letter-spacing: .08em; color: var(--accent); }
 .arcade-bar-track {
-  width: 100%; height: 14px; padding: 2px; background: #07080c;
-  border: 2px solid var(--accent-2); box-shadow: 0 2px 0 rgba(0,0,0,.5);
+  flex: 1; height: 12px; padding: 2px; background: #07080c;
+  border: 2px solid var(--accent-2);
 }
 .arcade-bar-fill {
   display: block; height: 100%; width: 0; transition: width .25s steps(5);
   /* chunky segments, like an old health/XP bar */
   background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 10px);
 }
-.arcade-bar-label { margin: 0; font: 400 11px var(--mono); color: var(--muted); letter-spacing: .05em; }
-.arcade-bar-label strong { color: var(--accent); font-weight: 400; }
+/* big buttons drawn on top of a game screen (START, PLAY AGAIN) */
+.arcade-screen-btn { position: absolute; left: 50%; top: 68%; transform: translate(-50%, -50%); z-index: 2; box-shadow: 0 4px 0 rgba(0,0,0,.6); }
+.arcade-screen-btn:hover { transform: translate(-50%, calc(-50% - 2px)); }
+
+/* "play to unlock" message across the top of a fully locked section */
+.has-lock-hint { position: relative; }
+.lock-hint {
+  position: absolute; z-index: 4; left: 50%; top: 0; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 12px; max-width: calc(100% - 24px); padding: 10px 18px;
+  font: 400 12px var(--mono); letter-spacing: .05em; color: var(--text); text-align: left; cursor: pointer;
+  background: #07080c; border: 2px solid var(--sec, var(--accent)); box-shadow: 0 4px 0 rgba(0,0,0,.6), 0 0 24px rgba(0,0,0,.6);
+}
+.lock-hint strong { color: var(--sec, var(--accent)); font-weight: 400; }
+.lock-hint .lock-icon { left: 0; top: -11px; margin: 0 20px 0 0; flex: none; }
+.lock-hint:hover { border-color: var(--text); }
 
 /* ---------- "Everything unlocked" popup over the game ---------- */
 .arcade-popup {
@@ -599,4 +614,12 @@ kbd {
   0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
   40% { transform: translate(-50%, -50%) scale(1.35); opacity: 1; }
   100% { transform: translate(-50%, -80%) scale(.6); opacity: 0; }
+}
+
+/* ---------- Aim cursor (pixel reticle, set from js/main.js in the palette colour) ---------- */
+@media (hover: hover) and (pointer: fine) {
+  body { cursor: var(--cursor-aim, crosshair); }
+  a, button, [role=slider], .card, .live-icon, .avatar-frame, .arcade-thumb canvas, .bgm-bars, .relock, .lock-hint, .locked {
+    cursor: var(--cursor-lock, pointer) !important;
+  }
 }

@@ -1,7 +1,7 @@
-// ---------------------------------------------------------------------------
-// SPACE ASCENT DEFENDER: a fixed shooter (a nod to the Space Ascent project).
+﻿// ---------------------------------------------------------------------------
+// SPACE DEFENDER: a fixed shooter (a nod to the Space Ascent project).
 // Waves of pixel aliens march side to side and step down; shoot them before
-// they land. ← → move, Space fires (hold to auto-fire). 3 lives.
+// they land. â† â†’ move, Space fires (hold to auto-fire). 3 lives.
 // Scoring: back rows 10, middle 20, front row 30, satellite 100,
 // wave clear bonus 50 x wave.
 // ---------------------------------------------------------------------------

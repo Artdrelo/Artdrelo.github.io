@@ -241,21 +241,22 @@ window.IntroGate = (() => {
         <p class="gate-kicker">▶ INSERT COIN</p>
         <h2 id="gate-title">Play to Unlock Portfolio</h2>
         <p class="gate-goal">Catch <strong>${GOAL} coins</strong> to unlock. Dodge the bombs!</p>
-        <div class="arcade-screen"><canvas aria-label="Coin Catcher game"></canvas></div>
+        <div class="arcade-screen">
+          <canvas aria-label="Coin Catcher game"></canvas>
+          <button class="btn btn-primary arcade-big-btn arcade-screen-btn" type="button" data-act="start">▶ START</button>
+        </div>
         <div class="arcade-pad" aria-label="Game controls"></div>
         <p class="key-hint"><kbd>←</kbd><kbd>→</kbd> move</p>
         <div class="gate-actions">
-          <button class="btn btn-primary" type="button" data-act="start">START</button>
-          <button class="btn btn-small" type="button" data-act="skip">Skip the fun and go to portfolio</button>
+          <button class="btn arcade-big-btn" type="button" data-act="skip">Skip the fun and go to portfolio</button>
         </div>
         <p class="gate-best">${bestText()}</p>
       </div>`;
     document.body.appendChild(el);
 
     // progress bar towards the coin goal
-    const bar = Arcade.progressBar();
-    el.querySelector(".arcade-screen").after(bar);
-    const setBar = n => bar.set(n / GOAL, `Coins <strong>${n}</strong> / ${GOAL}`);
+    const bar = Arcade.progressBar(el.querySelector(".arcade-screen"), "COINS");
+    const setBar = n => bar.set(n / GOAL, `${n} of ${GOAL} coins`);
     setBar(0);
 
     game = createGame();
@@ -267,7 +268,7 @@ window.IntroGate = (() => {
         el.classList.add("won");
         el.querySelector(".gate-best").textContent = bestText();
         const start = el.querySelector('[data-act="start"]');
-        start.textContent = "ENTER PORTFOLIO";
+        start.textContent = "▶ ENTER PORTFOLIO";
         start.dataset.act = "enter";
         el.classList.remove("playing");
         start.focus();
@@ -293,7 +294,7 @@ window.IntroGate = (() => {
     else {
       // replay: reset buttons to the start state
       const b = el.querySelector('[data-act="enter"]');
-      if (b) { b.textContent = "START"; b.dataset.act = "start"; }
+      if (b) { b.textContent = "▶ START"; b.dataset.act = "start"; }
       el.classList.remove("won", "playing", "closing");
       el.querySelector(".gate-best").textContent = bestText();
     }

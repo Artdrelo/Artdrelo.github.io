@@ -50,12 +50,39 @@ window.Arcade = (() => {
     spriteCache.set(key, c);
     return c;
   }
-  function text(ctx, str, x, y, { color = "#fff", align = "left", size = 8, shadow = "#000" } = {}) {
-    ctx.font = `${size}px Silkscreen, monospace`;
-    ctx.textAlign = align; ctx.textBaseline = "top";
-    if (shadow) { ctx.fillStyle = shadow; ctx.fillText(str, Math.round(x) + 1, Math.round(y) + 1); }
-    ctx.fillStyle = color; ctx.fillText(str, Math.round(x), Math.round(y));
+  // Pixel-crisp text: the browser draws text with soft anti-aliased edges, which
+  // look blurry once the screen is scaled up. So each label is drawn once,
+  // snapped to fully on/off pixels, cached, and then stamped like a sprite.
+  const textCache = new Map();
+  function textSprite(str, color, size) {
+    const key = str + "|" + color + "|" + size;
+    let c = textCache.get(key);
+    if (c) return c;
+    const m = document.createElement("canvas").getContext("2d");
+    m.font = `${size}px Silkscreen, monospace`;
+    const w = Math.ceil(m.measureText(str).width) + 2, h = size + 4;
+    c = document.createElement("canvas");
+    c.width = Math.max(1, w); c.height = h;
+    const g = c.getContext("2d");
+    g.font = m.font; g.textBaseline = "top"; g.fillStyle = color;
+    g.fillText(str, 0, 1);
+    const img = g.getImageData(0, 0, c.width, h), d = img.data;
+    for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 100 ? 255 : 0;   // hard pixel edges
+    g.putImageData(img, 0, 0);
+    if (textCache.size > 400) textCache.clear();
+    textCache.set(key, c);
+    return c;
   }
+  function text(ctx, str, x, y, { color = "#fff", align = "left", size = 8, shadow = "#000" } = {}) {
+    str = String(str);
+    const s = textSprite(str, color, size);
+    const w = s.width - 2;
+    const left = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
+    if (shadow) ctx.drawImage(textSprite(str, shadow, size), left + 1, Math.round(y));
+    ctx.drawImage(s, left, Math.round(y) - 1);
+  }
+  // fonts can finish loading after the first frames: drop text drawn with the fallback font
+  if (document.fonts) document.fonts.ready.then(() => textCache.clear());
   const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
   // --- palette -------------------------------------------------------------------
@@ -176,6 +203,23 @@ window.Arcade = (() => {
     return session;
   }
 
+  // progress bar strip that sits inside the top of a game screen
+  function progressBar(screenEl, tag) {
+    const el = document.createElement("div");
+    el.className = "arcade-bar";
+    el.innerHTML = `<span class="arcade-bar-tag">${tag}</span><div class="arcade-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span class="arcade-bar-fill"></span></div>`;
+    screenEl.prepend(el);
+    el.set = (fraction, label) => {
+      const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
+      el.querySelector(".arcade-bar-fill").style.width = pct + "%";
+      const track = el.querySelector(".arcade-bar-track");
+      track.setAttribute("aria-valuenow", pct);
+      if (label) track.setAttribute("aria-label", label);
+    };
+    el.setTag = t => { el.querySelector(".arcade-bar-tag").textContent = t; };
+    return el;
+  }
+
   // render a single frame of a game into a new canvas (used for preview thumbnails)
   function snapshot(game, steps = 90) {
     const c = document.createElement("canvas");
@@ -189,5 +233,5 @@ window.Arcade = (() => {
     return c;
   }
 
-  return { W, H, store, best, submit, sprite, text, css, palette, mount, snapshot };
+  return { W, H, store, best, submit, sprite, text, css, palette, mount, snapshot, progressBar };
 })();

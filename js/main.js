@@ -151,9 +151,20 @@
 
 
     function resize() {
-      W = Math.ceil(innerWidth / PX); H = Math.ceil(innerHeight / PX);
+      // size from the visible area (excluding the scrollbar) and pin the CSS size to
+      // exactly W*PX, so a game pixel always maps to the same spot as the cursor
+      const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+      W = Math.ceil(vw / PX); H = Math.ceil(vh / PX);
       cv.width = W; cv.height = H;
+      cv.style.width = W * PX + "px"; cv.style.height = H * PX + "px";
       ctx.imageSmoothingEnabled = false;
+      if (acv) {
+        acv.width = W; acv.height = H; actx.imageSmoothingEnabled = false;
+        acv.style.width = W * PX + "px"; acv.style.height = H * PX + "px";
+        const want = innerWidth < 700 ? 2 : 3;
+        while (rocks.length < want) { const r = {}; spawnRock(r, false); rocks.push(r); }
+        rocks.length = want;
+      }
       const target = Math.round((innerWidth * innerHeight) / 24000);
       while (embers.length < target) embers.push(makeEmber(true));
       embers.length = target;
@@ -203,6 +214,63 @@
     }, { passive: true });
     document.addEventListener("pointerleave", () => { mouse.active = false; mouse.px = mouse.py = -999; });
 
+    // --- background asteroids (on their own canvas, behind the page content) ---
+    const acv = $("#asteroids"), actx = acv ? acv.getContext("2d") : null;
+    const rocks = [], debris = [], lasers = [];
+    function rockSprite(r) {
+      const s = r * 2 + 2, c = document.createElement("canvas");
+      c.width = c.height = s;
+      const g = c.getContext("2d");
+      const tint = theme.water ? theme.water[0] : [60, 22, 66];
+      const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+      const base = mix([92, 96, 110], tint, .3), dark = mix(base, [7, 8, 12], .55), light = mix(base, [255, 255, 255], .3);
+      const bumps = Array.from({ length: 8 }, () => .74 + Math.random() * .26);
+      const craters = Array.from({ length: 2 + (Math.random() * 2 | 0) }, () => ({ a: Math.random() * 6.28, d: Math.random() * r * .5, s: 1 + Math.random() * r * .25 }));
+      for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+        const dx = x + .5 - s / 2, dy = y + .5 - s / 2, d = Math.hypot(dx, dy);
+        const ang = (Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2) * 8;
+        const i0 = Math.floor(ang) % 8, i1 = (i0 + 1) % 8, f = ang - Math.floor(ang);
+        if (d > r * (bumps[i0] * (1 - f) + bumps[i1] * f)) continue;
+        const shade = (dx + dy) / r;
+        let col = shade < -.55 ? light : shade > .45 ? dark : base;
+        if (craters.some(k => Math.hypot(dx - Math.cos(k.a) * k.d, dy - Math.sin(k.a) * k.d) < k.s)) col = dark;
+        g.fillStyle = `rgb(${col})`; g.fillRect(x, y, 1, 1);
+      }
+      return c;
+    }
+    function spawnRock(rock, offscreen = true) {
+      const fromLeft = Math.random() < .5;
+      rock.r = 5 + Math.random() * 5;
+      rock.spr = rockSprite(rock.r);
+      rock.x = offscreen ? (fromLeft ? -rock.r * 2 : W + rock.r * 2) : Math.random() * W;
+      rock.y = H * (.12 + Math.random() * .76);
+      rock.vx = (fromLeft ? 1 : -1) * (.06 + Math.random() * .1);
+      rock.vy = (Math.random() - .5) * .06;
+      rock.alive = true; rock.wait = 0;
+    }
+    document.addEventListener("palettechange", () => rocks.forEach(r => { if (r.alive) r.spr = rockSprite(r.r); }));
+
+    // click on a rock: it explodes; returns true when something was hit
+    hitAsteroid = (cx, cy) => {
+      if (!fxOn) return false;
+      const x = cx / PX, y = cy / PX;
+      const rock = rocks.find(r => r.alive && Math.hypot(x - r.x, y - r.y) < r.r + 3);
+      if (!rock) return false;
+      const cols = [[160, 165, 178], [110, 114, 128], theme.c1, theme.c1light];
+      for (let i = 0; i < 26; i++) {
+        const a = Math.random() * Math.PI * 2, s = .3 + Math.random() * 1.4;
+        debris.push({ x: rock.x, y: rock.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 40 + Math.random() * 40, max: 80, size: Math.random() < .5 ? 2 : 1, c: cols[(Math.random() * cols.length) | 0] });
+      }
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2, s = 1.6;
+        spawnSpark(rock.x, rock.y, Math.cos(a) * s, Math.sin(a) * s, 22, 2);   // shockwave ring
+      }
+      rock.alive = false; rock.wait = 200 + Math.random() * 300;             // a new one drifts in later
+      return true;
+    };
+    // laser streak from the bottom of the screen (your ship) to the click
+    shootLaser = (cx, cy) => { if (fxOn) lasers.push({ x: cx / PX, y: cy / PX, life: 7 }); };
+
     // exposed so the click handler can trigger a burst
     burst = (cx, cy) => {
       const x = cx / PX, y = cy / PX;
@@ -240,12 +308,53 @@
     function frame() {
       requestAnimationFrame(frame);
       if (!fxOn || document.hidden) {
-        if (!cleared) { ctx.clearRect(0, 0, W, H); sparks.length = 0; cleared = true; }
+        if (!cleared) { ctx.clearRect(0, 0, W, H); if (actx) actx.clearRect(0, 0, W, H); sparks.length = 0; cleared = true; }
         return;
       }
       cleared = false;
+
+      // asteroids drift behind the content
+      if (actx) {
+        actx.clearRect(0, 0, W, H);
+        actx.globalAlpha = .6;
+        for (const r of rocks) {
+          if (!r.alive) { if (--r.wait <= 0) spawnRock(r); continue; }
+          r.x += r.vx; r.y += r.vy;
+          if (r.x < -r.r * 3 || r.x > W + r.r * 3 || r.y < -r.r * 3 || r.y > H + r.r * 3) { spawnRock(r); continue; }
+          actx.drawImage(r.spr, Math.round(r.x - r.r - 1), Math.round(r.y - r.r - 1));
+        }
+        actx.globalAlpha = 1;
+      }
+
       ctx.clearRect(0, 0, W, H);
+
+      // asteroid debris (normal blending so the rock chunks stay solid)
+      for (let i = debris.length - 1; i >= 0; i--) {
+        const d = debris[i];
+        if (--d.life <= 0) { debris.splice(i, 1); continue; }
+        d.x += d.vx; d.y += d.vy; d.vx *= .97; d.vy *= .97;
+        ctx.globalAlpha = stepA(Math.min(1, d.life / 40));
+        ctx.fillStyle = `rgb(${d.c})`;
+        ctx.fillRect(Math.round(d.x), Math.round(d.y), d.size, d.size);
+      }
+
       ctx.globalCompositeOperation = "lighter";
+
+      // laser streaks: a pixel line from the bottom centre to the target
+      for (let i = lasers.length - 1; i >= 0; i--) {
+        const l = lasers[i];
+        if (--l.life <= 0) { lasers.splice(i, 1); continue; }
+        const x0 = W / 2, y0 = H, steps = Math.max(Math.abs(l.x - x0), Math.abs(l.y - y0));
+        const k = l.life / 7, from = Math.max(0, 1 - k * 1.4);       // the beam shrinks toward the target
+        ctx.globalAlpha = stepA(k);
+        ctx.fillStyle = `rgb(${theme.c1})`;
+        for (let s = Math.floor(steps * from); s <= steps; s += 1) {
+          const t = s / steps;
+          ctx.fillRect(Math.round(x0 + (l.x - x0) * t), Math.round(y0 + (l.y - y0) * t), 1, 1);
+        }
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y), 3, 1); ctx.fillRect(Math.round(l.x), Math.round(l.y) - 1, 1, 3);
+      }
 
       // ambient embers: drifting pixels pushed away by the cursor
       const R = 140 / PX;
@@ -291,7 +400,7 @@
     resize();
     frame();
   }
-  let burst = () => {};
+  let burst = () => {}, hitAsteroid = () => false, shootLaser = () => {};
   particles();
 
   // -------------------------------------------------------------------------
@@ -507,15 +616,48 @@
   // -------------------------------------------------------------------------
   // Clicks and hovers: sounds + click effects
   // -------------------------------------------------------------------------
-  const INTERACTIVE = "a, button, .card, .live-icon, summary, [role=button], [role=slider]";
-  addEventListener("pointerdown", e => {
-    const t = e.target;
+  const INTERACTIVE = "a, button, .card, .live-icon, summary, [role=button], [role=slider], .arcade-thumb canvas";
+  function fire(t, x, y) {
     if (t.closest(INTERACTIVE)) { SFX.click(); return; }
     if (!fxOn || t.closest("iframe, .modal-panel, .modal-backdrop, input, textarea, .gate")) return;
-    burst(e.clientX, e.clientY);
-    if (isOverWater(e.clientX, e.clientY)) { dropAt(e.clientX, e.clientY); SFX.water(); }
+    shootLaser(x, y);
+    if (hitAsteroid(x, y)) { SFX.asteroid(); return; }
+    burst(x, y);
+    if (isOverWater(x, y)) { dropAt(x, y); SFX.water(); }
     else SFX.sparkle();
+  }
+  // Mouse: react on press. Touch: only on a real tap (finger lifted quickly
+  // without moving), so starting a scroll never fires effects or sounds.
+  let tap = null;
+  addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch") { fire(e.target, e.clientX, e.clientY); return; }
+    tap = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), target: e.target };
   }, { passive: true });
+  addEventListener("pointerup", e => {
+    if (!tap || e.pointerId !== tap.id) return;
+    if (Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500) fire(tap.target, e.clientX, e.clientY);
+    tap = null;
+  }, { passive: true });
+  addEventListener("pointercancel", () => { tap = null; }, { passive: true });
+
+  // aim cursor: a pixel reticle in the main colour; it "locks on" over anything clickable
+  function cursorSvg(color, lock) {
+    const px = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+    const shape = lock
+      ? px(4, 4, 7, 2) + px(4, 4, 2, 7) + px(21, 4, 7, 2) + px(26, 4, 2, 7) + px(4, 26, 7, 2) + px(4, 21, 2, 7) + px(21, 26, 7, 2) + px(26, 21, 2, 7) + px(14, 14, 4, 4)
+      : px(15, 2, 2, 8) + px(15, 22, 2, 8) + px(2, 15, 8, 2) + px(22, 15, 8, 2) + px(15, 15, 2, 2) + px(10, 10, 2, 2) + px(20, 10, 2, 2) + px(10, 20, 2, 2) + px(20, 20, 2, 2);
+    // a dark outline (the same shape, spread by 1px) keeps it visible on light images
+    const outline = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([dx, dy]) => `<g transform="translate(${dx} ${dy})">${shape}</g>`).join("");
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" shape-rendering="crispEdges"><g fill="#07080c">${outline}</g><g fill="${color}">${shape}</g></svg>`;
+  }
+  function applyCursor() {
+    const c = getComputedStyle(document.documentElement).getPropertyValue("--c1").trim() || "#AFFC41";
+    const url = lock => `url("data:image/svg+xml,${encodeURIComponent(cursorSvg(c, lock))}") 16 16`;
+    document.documentElement.style.setProperty("--cursor-aim", `${url(false)}, crosshair`);
+    document.documentElement.style.setProperty("--cursor-lock", `${url(true)}, pointer`);
+  }
+  applyCursor();
+  document.addEventListener("palettechange", applyCursor);
 
   let hoverEl = null;
   document.addEventListener("pointerover", e => {
@@ -602,8 +744,8 @@
       names: moreProjects.map(p => p.title),
       goals: [50, 150, 300, 500, 750, 1050, 1400, 1800],
       itemWord: "projects",
-      title: "Space Ascent Defender",
-      blurb: "Blast the alien waves before they land. Every score goal unlocks another project, and one great run can unlock them all.",
+      title: "Space Defender",
+      blurb: "Shoot down the alien waves before they land. Score as high as you can.",
       keys: "<kbd>←</kbd><kbd>→</kbd> move <kbd>Space</kbd> fire",
       touch: ["left", "right", "action"],
       bestId: "defender",
@@ -618,7 +760,7 @@
       goals: [100, 250, 450, 700],
       itemWord: "games",
       title: "Lane Racer",
-      blurb: "Weave through traffic as the road speeds up, a nod to the Vial Security driving sim. Grab coins for extra points and unlock the store links.",
+      blurb: "Switch lanes to dodge traffic and grab coins as the road speeds up.",
       keys: "<kbd>←</kbd><kbd>→</kbd> change lane",
       touch: ["left", "right"],
       bestId: "racer",
@@ -634,7 +776,7 @@
       goals: [150, 400, 750, 1200],
       itemWord: "skill sets",
       title: "Skill Breaker",
-      blurb: "Smash the wall brick by brick. Chain hits before the ball comes back for combo points, and unlock each skill set.",
+      blurb: "Bounce the ball to smash every brick. Chain hits for combo points.",
       keys: "<kbd>←</kbd><kbd>→</kbd> move <kbd>Space</kbd> launch",
       touch: ["left", "right", "action"],
       bestId: "breaker",
